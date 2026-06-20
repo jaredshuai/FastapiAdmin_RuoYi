@@ -4,8 +4,8 @@ from typing import Any
 from app.core.base_schema import AuthSchema
 from app.core.exceptions import CustomException
 
-from ..engine.prefect_engine import run_prefect_workflow_sync, utc_now_iso, validate_workflow_graph
-from ..node_type.crud import WorkflowNodeTypeCRUD
+from ..handlers.workflow_engine import run_workflow_sync, utc_now_iso, validate_workflow_graph
+from ..nodes.crud import WorkflowNodeTypeCRUD
 from .crud import WorkflowCRUD
 from .schema import (
     WorkflowCreateSchema,
@@ -18,83 +18,43 @@ from .schema import (
 
 
 class WorkflowService:
-    """工作流：画布存储 + 发布校验 + Prefect 执行"""
+    """工作流：画布存储 + 发布校验 + 分层并行执行"""
 
-    @classmethod
-    def _out(cls, obj: Any) -> WorkflowOutSchema:
+    def __init__(self, auth: AuthSchema) -> None:
+        self.auth = auth
+
+    def _out(self, obj: Any) -> WorkflowOutSchema:
         return WorkflowOutSchema.model_validate(obj)
 
-    @classmethod
-    async def get_workflow_detail_service(cls, auth: AuthSchema, id: int) -> WorkflowOutSchema:
-        """
-        获取工作流详情。
-
-        参数:
-        - auth (AuthSchema): 认证信息。
-        - id (int): 工作流 ID。
-
-        返回:
-        - dict: 序列化后的工作流详情。
-
-        异常:
-        - CustomException: 不存在时抛出。
-        """
-        obj = await WorkflowCRUD(auth).get_obj_by_id_crud(id=id)
+    async def get_workflow_detail(self, id: int) -> WorkflowOutSchema:
+        obj = await WorkflowCRUD(self.auth).get_obj_by_id_crud(id=id)
         if not obj:
             raise CustomException(msg="工作流不存在")
-        return cls._out(obj)
+        return self._out(obj)
 
-    @classmethod
-    async def get_workflow_list_service(
-        cls,
-        auth: AuthSchema,
+    async def get_workflow_list(
+        self,
         search: WorkflowQueryParam | None = None,
         order_by: list[dict[str, str]] | None = None,
     ) -> list[WorkflowOutSchema]:
-        """
-        获取工作流列表（非分页）。
-
-        参数:
-        - auth (AuthSchema): 认证信息。
-        - search (WorkflowQueryParam | None): 查询条件。
-        - order_by (list[dict[str, str]] | None): 排序。
-
-        返回:
-        - list[dict]: 工作流字典列表。
-        """
         if order_by is None:
             order_by = [{"updated_time": "desc"}]
-        obj_list = await WorkflowCRUD(auth).get_obj_list_crud(
+        obj_list = await WorkflowCRUD(self.auth).get_obj_list_crud(
             search=vars(search) if search else None,
             order_by=order_by,
         )
-        return [cls._out(o) for o in obj_list]
+        return [self._out(o) for o in obj_list]
 
-    @classmethod
-    async def get_workflow_page_service(
-        cls,
-        auth: AuthSchema,
+    async def get_workflow_page(
+        self,
         page_no: int,
         page_size: int,
         search: WorkflowQueryParam | None = None,
         order_by: list[dict[str, str]] | None = None,
     ) -> dict:
-        """
-        分页查询工作流（数据库 OFFSET/LIMIT）。
-
-        参数:
-        - auth (AuthSchema): 认证信息。
-        - page_no (int): 页码。
-        - page_size (int): 每页条数。
-        - search (WorkflowQueryParam | None): 查询条件。
-        - order_by (list[dict[str, str]] | None): 排序。
-
-        返回:
-        - dict: 分页结果（items 已 JSON 友好序列化）。
-        """
         offset = (page_no - 1) * page_size
         order = order_by or [{"updated_time": "desc"}]
-        result = await WorkflowCRUD(auth).page(
+        result = await WorkflowCRUD(self.auth).page(
             offset=offset,
             limit=page_size,
             order_by=order,
@@ -104,92 +64,35 @@ class WorkflowService:
         result.items = [WorkflowOutSchema.model_validate(item).model_dump(mode="json") for item in result.items]
         return result
 
-    @classmethod
-    async def create_workflow_service(cls, auth: AuthSchema, data: WorkflowCreateSchema) -> WorkflowOutSchema:
-        """
-        创建工作流草稿。
-
-        参数:
-        - auth (AuthSchema): 认证信息。
-        - data (WorkflowCreateSchema): 创建体。
-
-        返回:
-        - dict: 新建工作流字典。
-
-        异常:
-        - CustomException: 编码重复或创建失败。
-        """
-        exist = await WorkflowCRUD(auth).get(code=data.code)
+    async def create_workflow(self, data: WorkflowCreateSchema) -> WorkflowOutSchema:
+        exist = await WorkflowCRUD(self.auth).get(code=data.code)
         if exist:
             raise CustomException(msg="流程编码已存在")
-        obj = await WorkflowCRUD(auth).create_obj_crud(data=data)
+        obj = await WorkflowCRUD(self.auth).create_obj_crud(data=data)
         if not obj:
             raise CustomException(msg="创建工作流失败")
-        return cls._out(obj)
+        return self._out(obj)
 
-    @classmethod
-    async def update_workflow_service(cls, auth: AuthSchema, id: int, data: WorkflowUpdateSchema) -> WorkflowOutSchema:
-        """
-        更新工作流。
-
-        参数:
-        - auth (AuthSchema): 认证信息。
-        - id (int): 工作流 ID。
-        - data (WorkflowUpdateSchema): 更新体。
-
-        返回:
-        - dict: 更新后工作流字典。
-
-        异常:
-        - CustomException: 不存在、编码冲突或更新失败。
-        """
-        exist = await WorkflowCRUD(auth).get_obj_by_id_crud(id=id)
+    async def update_workflow(self, id: int, data: WorkflowUpdateSchema) -> WorkflowOutSchema:
+        exist = await WorkflowCRUD(self.auth).get_obj_by_id_crud(id=id)
         if not exist:
             raise CustomException(msg="工作流不存在")
         if exist.code != data.code:
-            other = await WorkflowCRUD(auth).get(code=data.code)
+            other = await WorkflowCRUD(self.auth).get(code=data.code)
             if other:
                 raise CustomException(msg="流程编码已存在")
-        obj = await WorkflowCRUD(auth).update_obj_crud(id=id, data=data)
+        obj = await WorkflowCRUD(self.auth).update_obj_crud(id=id, data=data)
         if not obj:
             raise CustomException(msg="更新工作流失败")
-        return cls._out(obj)
+        return self._out(obj)
 
-    @classmethod
-    async def delete_workflow_service(cls, auth: AuthSchema, ids: list[int]) -> None:
-        """
-        批量删除工作流。
-
-        参数:
-        - auth (AuthSchema): 认证信息。
-        - ids (list[int]): ID 列表。
-
-        返回:
-        - None
-
-        异常:
-        - CustomException: ID 为空时抛出。
-        """
+    async def delete_workflow(self, ids: list[int]) -> None:
         if not ids:
             raise CustomException(msg="删除ID不能为空")
-        await WorkflowCRUD(auth).delete_obj_crud(ids=ids)
+        await WorkflowCRUD(self.auth).delete_obj_crud(ids=ids)
 
-    @classmethod
-    async def publish_workflow_service(cls, auth: AuthSchema, id: int) -> WorkflowOutSchema:
-        """
-        校验 DAG 后发布工作流。
-
-        参数:
-        - auth (AuthSchema): 认证信息。
-        - id (int): 工作流 ID。
-
-        返回:
-        - dict: 发布后工作流字典。
-
-        异常:
-        - CustomException: 不存在、图无效或发布失败。
-        """
-        obj = await WorkflowCRUD(auth).get_obj_by_id_crud(id=id)
+    async def publish_workflow(self, id: int) -> WorkflowOutSchema:
+        obj = await WorkflowCRUD(self.auth).get_obj_by_id_crud(id=id)
         if not obj:
             raise CustomException(msg="工作流不存在")
         nodes = obj.nodes or []
@@ -208,27 +111,13 @@ class WorkflowService:
             edges=obj.edges,
             workflow_status="published",
         )
-        updated = await WorkflowCRUD(auth).update_obj_crud(id=id, data=data)
+        updated = await WorkflowCRUD(self.auth).update_obj_crud(id=id, data=data)
         if not updated:
             raise CustomException(msg="发布失败")
-        return cls._out(updated)
+        return self._out(updated)
 
-    @classmethod
-    async def execute_workflow_service(cls, auth: AuthSchema, body: WorkflowExecuteSchema) -> WorkflowExecuteResultSchema:
-        """
-        执行已发布工作流（Prefect 同步入口在线程池中运行）。
-
-        参数:
-        - auth (AuthSchema): 认证信息。
-        - body (WorkflowExecuteSchema): 工作流 ID 与变量。
-
-        返回:
-        - dict: 执行结果摘要（成功或失败结构）。
-
-        异常:
-        - CustomException: 未发布、缺节点、节点类型未注册等。
-        """
-        obj = await WorkflowCRUD(auth).get_obj_by_id_crud(id=body.workflow_id)
+    async def execute_workflow(self, body: WorkflowExecuteSchema) -> WorkflowExecuteResultSchema:
+        obj = await WorkflowCRUD(self.auth).get_obj_by_id_crud(id=body.workflow_id)
         if not obj:
             raise CustomException(msg="工作流不存在")
         if obj.workflow_status != "published":
@@ -242,7 +131,7 @@ class WorkflowService:
         codes_set = {n.get("type") for n in nodes if n.get("type")}
         code_list = list(codes_set)
         templates: dict[str, dict[str, Any]] = {}
-        type_objs = await WorkflowNodeTypeCRUD(auth).get_obj_list_crud(search={"code": ("in", code_list)})
+        type_objs = await WorkflowNodeTypeCRUD(self.auth).get_obj_list_crud(search={"code": ("in", code_list)})
         type_map = {t.code: t for t in type_objs}
         for code in codes_set:
             node_type = type_map.get(code)
@@ -260,7 +149,7 @@ class WorkflowService:
         start = utc_now_iso()
         try:
             raw = await asyncio.to_thread(
-                run_prefect_workflow_sync,
+                run_workflow_sync,
                 nodes,
                 edges,
                 templates,

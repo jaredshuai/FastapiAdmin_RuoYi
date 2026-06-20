@@ -35,7 +35,7 @@ from app.core.database import async_db_session, create_tables
 from app.core.logger import logger
 from app.plugin.module_example.demo.model import DemoModel
 from app.plugin.module_task.cronjob.node.model import NodeModel
-from app.plugin.module_task.workflow.node_type.model import WorkflowNodeTypeModel
+from app.plugin.module_task.workflow.nodes.model import WorkflowNodeTypeModel
 
 
 class InitializeData:
@@ -99,10 +99,6 @@ class InitializeData:
         async with async_db_session() as session:
             async with session.begin():
                 await self.__init_data(session)
-
-    # ==========================================================================
-    # 主入口
-    # ==========================================================================
 
     async def __init_data(self, db: AsyncSession) -> None:
         """按依赖顺序初始化各表种子数据"""
@@ -190,10 +186,6 @@ class InitializeData:
                 logger.error(f"❌️ 初始化 {table_name} 表数据失败")
                 raise
 
-    # ==========================================================================
-    # 递归创建对象（含嵌套 children）
-    # ==========================================================================
-
     @staticmethod
     def __create_objects_with_children(data: list[dict], model_class: type) -> list:
         """递归创建树形模型实例，处理嵌套 children 并注入 parent_id"""
@@ -210,10 +202,6 @@ class InitializeData:
             return obj
 
         return [_create(item) for item in data]
-
-    # ==========================================================================
-    # JSON 文件加载
-    # ==========================================================================
 
     async def __load_json(self, filename: str) -> list[dict]:
         """读取并解析种子数据 JSON 文件"""

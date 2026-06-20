@@ -18,7 +18,7 @@
 import builtins
 from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, delete, desc, false, func, literal_column, select, update
@@ -29,20 +29,16 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.base_model import MappedBase
 from app.core.base_schema import AuthSchema, PageResultSchema
-from app.core.database import async_db_session
 from app.core.exceptions import CustomException
 from app.core.permission import Permission
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Result
 
-ModelType = TypeVar("ModelType", bound=MappedBase)
-CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
-UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
 OutSchemaType = TypeVar("OutSchemaType", bound=BaseModel)
 
 
-class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
+class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaType: BaseModel]:
     """统一数据层基类 — 有认证时自动处理权限，无认证时纯数据操作"""
 
     def __init__(
@@ -91,14 +87,12 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             data["deleted_id"] = self.auth.user.id
         return data
 
-    # ── 查询 ──
     async def _get_one(
-        self, session: AsyncSession, preload: list[str | Any] | None = None, **kwargs
+        self, preload: list[str | Any] | None = None, **kwargs
     ) -> ModelType | None:
-        """内部方法：在指定会话上执行单条查询（get / update 共用）
+        """内部方法：在当前实例会话上执行单条查询（get / update 共用）
 
         参数:
-        - session: 数据库会话（只读 or 事务）
         - preload: 预加载关系
         - **kwargs: 查询条件
 
@@ -110,12 +104,12 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         for opt in self.__loader_options(preload):
             sql = sql.options(opt)
         sql = await self.__filter_permissions(sql)
-        result: Result = await session.execute(sql)
+        result: Result = await self.db.execute(sql)
         return result.scalars().first()
 
     async def get(self, preload: list[str | Any] | None = None, **kwargs) -> ModelType | None:
         """
-        根据条件获取单个对象（使用只读会话，不参与请求事务）
+        根据条件获取单个对象（复用请求级事务会话，保证读已写一致性）
 
         参数:
         - preload: 预加载关系
@@ -125,8 +119,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         - 对象实例或 None
         """
         try:
-            async with async_db_session() as rdb:
-                return await self._get_one(rdb, preload=preload, **kwargs)
+            return await self._get_one(preload=preload, **kwargs)
         except CustomException:
             raise
         except Exception as e:
@@ -181,7 +174,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
     async def count(self, **kwargs) -> int:
         """
-        统计符合条件的记录数（使用只读会话，不参与请求事务）
+        统计符合条件的记录数（复用请求级事务会话）
 
         参数:
         - **kwargs: 查询条件，支持元组语法
@@ -193,8 +186,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             conditions = await self.__build_conditions(**kwargs)
             count_sql = select(func.count()).select_from(self.model).where(*conditions)
             count_sql = await self.__filter_permissions(count_sql)
-            async with async_db_session() as rdb:
-                result = await rdb.execute(count_sql)
+            result: Result = await self.db.execute(count_sql)
             return result.scalar() or 0
         except CustomException:
             raise
@@ -208,7 +200,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         preload: list[str | Any] | None = None,
     ) -> Sequence[ModelType]:
         """
-        根据条件获取对象列表（使用只读会话，不参与请求事务）
+        根据条件获取对象列表（复用请求级事务会话）
 
         参数:
         - search: 查询条件
@@ -225,8 +217,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             for opt in self.__loader_options(preload):
                 sql = sql.options(opt)
             sql = await self.__filter_permissions(sql)
-            async with async_db_session() as rdb:
-                result: Result = await rdb.execute(sql)
+            result: Result = await self.db.execute(sql)
             return result.scalars().all()
         except CustomException:
             raise
@@ -241,7 +232,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         preload: builtins.list[str | Any] | None = None,
     ) -> Sequence[ModelType]:
         """
-        获取树形结构数据列表（使用只读会话，不参与请求事务）
+        获取树形结构数据列表（复用请求级事务会话）
 
         参数:
         - search: 查询条件
@@ -269,8 +260,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 sql = sql.options(opt)
 
             sql = await self.__filter_permissions(sql)
-            async with async_db_session() as rdb:
-                result: Result = await rdb.execute(sql)
+            result: Result = await self.db.execute(sql)
             return result.scalars().all()
         except CustomException:
             raise
@@ -287,7 +277,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         preload: builtins.list[str | Any] | None = None,
     ) -> PageResultSchema:
         """
-        获取分页数据（使用只读会话，不参与请求事务；count 与 data 共享同一会话）
+        获取分页数据（复用请求级事务会话；count 与 data 共享同一会话）
 
         参数:
         - offset: 偏移量
@@ -318,14 +308,13 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             if where_clause is not None:
                 count_sql = count_sql.where(where_clause)
 
-            async with async_db_session() as rdb:
-                total_result = await rdb.execute(count_sql)
-                total = total_result.scalar() or 0
+            total_result = await self.db.execute(count_sql)
+            total = total_result.scalar() or 0
 
-                result: Result = await rdb.execute(
-                    data_sql.order_by(*self._parse_order(order)).offset(offset).limit(limit)
-                )
-                objs = result.scalars().all()
+            result: Result = await self.db.execute(
+                data_sql.order_by(*self._parse_order(order)).offset(offset).limit(limit)
+            )
+            objs = result.scalars().all()
 
             items = (
                 [out_schema.model_validate(obj).model_dump() for obj in objs]
@@ -345,7 +334,6 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         except Exception as e:
             raise CustomException(msg=f"分页查询失败: {e!s}")
 
-    # ── 创建 ──
     async def create(self, data: CreateSchemaType) -> ModelType:
         """创建新对象（有认证时自动填充租户与审计字段）
 
@@ -380,7 +368,6 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         except Exception as e:
             raise CustomException(msg=f"创建失败: {e!s}")
 
-    # ── 更新 ──
     async def update(self, id: int, data: UpdateSchemaType) -> ModelType:
         """更新对象（有认证时检查租户归属 + 填充审计字段）
 
@@ -396,7 +383,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         try:
             obj_dict = data.model_dump(exclude_unset=True, exclude={"id"})
             model_defaults = getattr(self.model, "__loader_options__", [])
-            obj = await self._get_one(self.db, id=id, preload=model_defaults)
+            obj = await self._get_one(id=id, preload=model_defaults)
             if not obj:
                 raise CustomException(msg="更新对象不存在")
 
@@ -426,28 +413,20 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         except Exception as e:
             raise CustomException(msg=f"更新失败: {e!s}")
 
-    # ── 删除 ──
     async def delete(self, ids: builtins.list[int]) -> None:
-        """软删除对象（有认证时加租户隔离 + 填充删除人）
-
-        事务由 request 级 db_getter 统一管理，本方法不开启独立事务。
-
-        参数:
-        - ids: 对象 ID 列表
-        """
+        """软删除对象（有认证时填充删除人 + 租户隔离）"""
         try:
             pk = self._get_pk_col()
-            tenant_conds = self.__tenant_condition()
 
             if self._supports_soft_delete:
-                sql = (
-                    update(self.model)
-                    .where(pk.in_(ids), *tenant_conds)
-                    .values(**self._soft_delete_values())
-                )
+                sql = self._tenant_dml_where(
+                    update(self.model).where(pk.in_(ids))
+                ).values(**self._soft_delete_values())
                 await self.db.execute(sql)
             else:
-                sql = delete(self.model).where(pk.in_(ids), *tenant_conds)
+                sql = self._tenant_dml_where(
+                    delete(self.model).where(pk.in_(ids))
+                )
                 await self.db.execute(sql)
             await self.db.flush()
         except CustomException:
@@ -456,18 +435,13 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             raise CustomException(msg=f"删除失败: {e!s}")
 
     async def clear(self) -> None:
-        """软清空对象表（有认证时租户隔离）
-
-        事务由 request 级 db_getter 统一管理，本方法不开启独立事务。
-        """
+        """软清空对象表（有认证时填充删除人 + 租户隔离）"""
         try:
-            tenant_conds = self.__tenant_condition()
-
             if self._supports_soft_delete:
-                sql = update(self.model).where(*tenant_conds).values(**self._soft_delete_values())
+                sql = self._tenant_dml_where(update(self.model)).values(**self._soft_delete_values())
                 await self.db.execute(sql)
             else:
-                sql = delete(self.model).where(*tenant_conds)
+                sql = self._tenant_dml_where(delete(self.model))
                 await self.db.execute(sql)
             await self.db.flush()
         except CustomException:
@@ -475,23 +449,11 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         except Exception as e:
             raise CustomException(msg=f"清空失败: {e!s}")
 
-    # ── 批量操作 ──
     async def set(self, ids: builtins.list[int], **kwargs) -> None:
-        """批量更新字段（有认证时租户隔离）
-
-        事务由 request 级 db_getter 统一管理，本方法不开启独立事务。
-
-        参数:
-        - ids: 对象 ID 列表
-        - **kwargs: 更新属性及值
-        """
+        """批量更新字段（带租户隔离）"""
         try:
             pk = self._get_pk_col()
-            sql = (
-                update(self.model)
-                .where(pk.in_(ids), *self.__tenant_condition())
-                .values(**kwargs)
-            )
+            sql = self._tenant_dml_where(update(self.model)).where(pk.in_(ids)).values(**kwargs)
             await self.db.execute(sql)
             await self.db.flush()
         except CustomException:
@@ -500,47 +462,20 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             raise CustomException(msg=f"批量更新失败: {e!s}")
 
     async def restore(self, ids: builtins.list[int]) -> None:
-        """恢复软删除对象（有认证时租户隔离）
-
-        事务由 request 级 db_getter 统一管理，本方法不开启独立事务。
-
-        参数:
-        - ids: 对象 ID 列表
-        """
+        """恢复软删除对象（带租户隔离）"""
         try:
             if not self._supports_soft_delete:
                 raise CustomException(msg="该模型不支持软删除，无法恢复")
             pk = self._get_pk_col()
-            sql = (
-                update(self.model)
-                .where(pk.in_(ids), *self.__tenant_condition())
-                .values(is_deleted=False, deleted_time=None, deleted_id=None)
-            )
+            sql = self._tenant_dml_where(
+                update(self.model).where(pk.in_(ids))
+            ).values(is_deleted=False, deleted_time=None, deleted_id=None)
             await self.db.execute(sql)
             await self.db.flush()
         except CustomException:
             raise
         except Exception as e:
             raise CustomException(msg=f"恢复失败: {e!s}")
-
-    # ── 内部方法 ──
-    def __tenant_condition(self) -> builtins.list[ColumnElement]:
-        """
-        获取租户隔离条件（无认证时返回空列表）
-
-        返回:
-        - 租户过滤条件列表
-        """
-        if not self.auth or not self.auth.user:
-            return []
-        if self.auth.user.is_superuser:
-            return []
-        if not hasattr(self.model, "tenant_id"):
-            return []
-        tid = self.auth.user.tenant_id
-        if tid is not None:
-            return [getattr(self.model, "tenant_id") == tid]
-        return []
 
     async def __filter_permissions(self, sql: Select) -> Select:
         """过滤数据权限（仅用于 Select）"""
@@ -553,7 +488,6 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         return await filter_obj.filter_query(sql)
 
     def _platform_shared_conditions(self) -> builtins.list[ColumnElement]:
-        """平台共享模型读取条件（租户可读 tenant_id=平台或自己的数据）"""
         if not self.auth or not self.auth.user:
             return []
         tid = self.auth.user.tenant_id
@@ -564,20 +498,27 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             ]
         return []
 
+    def _tenant_dml_where(self, sql):
+        """为 DML 语句注入 tenant_id 条件（不读平台数据）"""
+        if self.auth and hasattr(self.model, "tenant_id") \
+           and self.auth.user and not self.auth.user.is_superuser:
+            tid = self.auth.tenant_id
+            if tid is not None:
+                return sql.where(getattr(self.model, "tenant_id") == tid)
+        return sql
+
     async def __build_conditions(self, **kwargs) -> builtins.list[ColumnElement]:
-        """
-        构建查询条件（自动添加 is_deleted 过滤）
-
-        参数:
-        - **kwargs: 查询参数，支持元组语法: ("like", val), ("in", []), ("between", [a,b]) 等
-
-        返回:
-        - SQL 条件表达式列表
-        """
         conditions: builtins.list[ColumnElement] = []
 
         if hasattr(self.model, "is_deleted"):
             conditions.append(getattr(self.model, "is_deleted") == False)  # noqa: E712
+
+        if self.auth and hasattr(self.model, "tenant_id") \
+           and not getattr(self.model, "__platform_data_shared__", False):
+            if self.auth.user and not self.auth.user.is_superuser:
+                tid = self.auth.tenant_id
+                if tid is not None:
+                    conditions.append(getattr(self.model, "tenant_id") == tid)
 
         for key, value in kwargs.items():
             if value is None or value == "":

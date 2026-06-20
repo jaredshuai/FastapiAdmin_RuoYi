@@ -55,7 +55,7 @@ class SelectTenantOutSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     access_token: str = Field(..., description="访问token（含租户上下文）")
-    token_type: str = Field(default="Bearer", description="token类型")
+    token_type: str = Field(default="Bearer", description="token类型（RFC 6750）")
     expires_in: int = Field(..., gt=0, description="过期时间(秒)")
 
 
@@ -64,9 +64,6 @@ class LoginWithTenantsSchema(JWTOutSchema):
 
     tenants: list[TenantOptionSchema] = Field(default_factory=list, description="可选租户列表")
     user_info: dict = Field(default_factory=dict, description="用户信息")
-
-
-# ─── 租户自助注册 ──────────────────────────────────────────────────────────────
 
 
 class TenantRegisterSchema(BaseModel):
@@ -89,9 +86,6 @@ class TenantRegisterOutSchema(BaseModel):
     package: str | None = Field(default=None, description="开通套餐")
     trial_end: str = Field(..., description="试用到期日")
     message: str = Field(default="注册成功", description="提示信息")
-
-
-# ─── 忘记密码（自助重置）─────────────────────────────────────────
 
 
 class ForgotPasswordSchema(BaseModel):

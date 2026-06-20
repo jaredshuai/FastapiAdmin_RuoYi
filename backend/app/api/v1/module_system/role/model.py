@@ -78,7 +78,7 @@ class RoleModel(ModelMixin, TenantMixin, UserMixin):
         "deleted_by",
         "tenant_by",
     ]
-    __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.USER_ROLE
+    __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.USER_BINDING
 
     name: Mapped[str] = mapped_column(String(64), nullable=False, comment="角色名称")
     code: Mapped[str] = mapped_column(String(64), nullable=False, comment="角色编码")

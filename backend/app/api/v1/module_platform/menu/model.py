@@ -25,7 +25,7 @@ class MenuModel(ModelMixin):
     __table_args__: dict[str, str] = {"comment": "平台菜单表"}
     __tree_children_attr__: str = "children"
     __loader_options__: list[str] = ["roles", "children"]
-    __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.ROLE_BASED
+    __permission_strategy__: PermissionFilterStrategy = PermissionFilterStrategy.MENU_AUTH
 
     name: Mapped[str] = mapped_column(String(50), nullable=False, comment="菜单名称")
     type: Mapped[int] = mapped_column(Integer, nullable=False, default=2, comment="菜单类型(1:目录 2:菜单 3:按钮 4:链接)")

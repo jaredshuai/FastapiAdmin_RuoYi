@@ -73,7 +73,7 @@ def _render_invoice_pdf(invoice: InvoiceOutSchema) -> str:
     output_dir = INVOICE_DIR / str(invoice.tenant_id)
     output_path = output_dir / f"{invoice.invoice_no}.pdf"
     generate_pdf_from_template(
-        template_name="invoice.html.j2",
+        template_name="invoice.jinja2",
         template_dir=TEMPLATE_DIR,
         variables=variables,
         output_path=output_path,

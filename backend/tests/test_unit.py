@@ -9,22 +9,15 @@ class TestTenantContextVar:
     """租户上下文变量读写与清理。"""
 
     def test_initially_none(self) -> None:
-        from app.core.tenant import get_current_tenant_id, get_is_super_admin
+        from app.core.request_context import get_current_tenant_id
 
         assert get_current_tenant_id() is None
-        assert get_is_super_admin() is False
 
     def test_set_and_get(self) -> None:
-        from app.core.tenant import (
-            clear_current_tenant,
-            get_current_tenant_id,
-            get_is_super_admin,
-            set_current_tenant,
-        )
+        from app.core.request_context import clear_current_tenant, get_current_tenant_id, set_current_tenant
 
-        set_current_tenant(42, True)
+        set_current_tenant(42)
         assert get_current_tenant_id() == 42
-        assert get_is_super_admin() is True
 
         clear_current_tenant()
         assert get_current_tenant_id() is None

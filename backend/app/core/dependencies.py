@@ -1,6 +1,7 @@
 import json
 import time
 from collections.abc import AsyncGenerator
+from dataclasses import replace
 
 from fastapi import Depends, Query, Request
 from redis.asyncio.client import Redis
@@ -15,8 +16,9 @@ from app.core.database import async_db_session
 from app.core.exceptions import CustomException
 from app.core.logger import logger
 from app.core.redis_crud import RedisCURD
+from app.core.request_context import RequestContext
+from app.core.request_context import get_current_tenant_id as _get_ctx_tenant_id
 from app.core.security import OAuth2Schema, decode_access_token
-from app.core.tenant import get_current_tenant_id as _get_ctx_tenant_id
 
 # 套餐菜单权限缓存: {tenant_id: (timestamp, [menu_ids])}
 _package_menu_cache: dict[int, tuple[float, list[int]]] = {}
@@ -25,8 +27,8 @@ _package_menu_cache: dict[int, tuple[float, list[int]]] = {}
 async def db_getter() -> AsyncGenerator[AsyncSession, None]:
     """数据库会话 — 请求级生命周期管理。
 
-    一个 HTTP 请求内所有写入共享同一个事务，要么全成功，要么全失败。
-    自动提交（无异常时）或回滚（异常时）。
+    一个 HTTP 请求内所有 SQL 共享同一个事务：要么全成功，要么全失败。
+    读操作也走这个事务（牺牲一点 MVCC 隔离换取读已写一致性）。
     """
     async with async_db_session() as session:
         async with session.begin():
@@ -55,10 +57,6 @@ async def get_current_tenant_id() -> int | None:
         int | None: 当前租户 ID，未设置时返回 None。
     """
     return _get_ctx_tenant_id()
-
-
-# ── Token 解析 & 验证辅助函数 ──
-
 
 def _decode_token_info(token: str) -> tuple[dict, str]:
     """解码 JWT token 返回 (user_info, session_id)
@@ -121,10 +119,6 @@ async def _try_sliding_refresh(redis: Redis, session_id: str) -> None:
             expire=settings.REFRESH_TOKEN_EXPIRE_MINUTES,
         )
 
-
-# ── 用户加载辅助函数 ──
-
-
 async def _load_user_from_db(db: AsyncSession, username: str):
     """从数据库加载用户（含角色、菜单、部门、职位全量预加载）
 
@@ -166,10 +160,6 @@ async def _load_user_from_db(db: AsyncSession, username: str):
 
     return user
 
-
-# ── 依赖注入函数 ──
-
-
 async def get_current_user(
     request: Request,
     db: AsyncSession = Depends(db_getter),
@@ -197,9 +187,10 @@ async def get_current_user(
     if token.startswith("Bearer"):
         token = token.split(" ")[1]
 
-    # 优先使用 TenantMiddleware 缓存在 scope 中的 JWT 解码结果（避免重复解码）
-    cached_payload = request.scope.get("_jwt_payload")
-    cached_user_info = request.scope.get("_jwt_user_info")
+    # 优先使用 TenantMiddleware 缓存在 request.state.ctx 中的 JWT 解码结果（避免重复解码）
+    ctx = getattr(request.state, "ctx", None)
+    cached_payload = ctx.jwt_payload if ctx else None
+    cached_user_info = ctx.jwt_user_info if ctx else None
 
     if cached_payload and cached_user_info:
         payload = cached_payload
@@ -231,11 +222,14 @@ async def get_current_user(
     async with async_db_session() as lookup_db:
         user = await _load_user_from_db(lookup_db, username)
 
-    # 设置请求上下文
-    request.scope["user_id"] = user.id
-    request.scope["user_username"] = user.username
-    request.scope["session_id"] = session_id
-    request.scope["session_info"] = user_info
+    # 设置请求上下文（仅在当前 request 对象上，业务方通过 request.state.ctx 读取）
+    request.state.ctx = replace(
+        (getattr(request.state, "ctx", None) or RequestContext()),
+        user_id=user.id,
+        user_username=user.username,
+        session_id=session_id,
+        session_info=user_info,
+    )
 
     # 返回的 auth.db 指向请求级事务会话，供后续读写操作使用
     auth = AuthSchema(db=db, tenant_id=tenant_id, check_data_scope=False)
@@ -298,10 +292,6 @@ async def _verify_token(
     auth.user = user
     return auth
 
-
-# ── 套餐菜单缓存 ──
-
-
 async def _get_cached_tenant_menu_ids(auth: AuthSchema, tenant_id: int) -> list[int]:
     """获取租户可用菜单 ID，带 60s 进程级缓存
 
@@ -323,9 +313,6 @@ async def _get_cached_tenant_menu_ids(auth: AuthSchema, tenant_id: int) -> list[
     result = await PackageService.get_tenant_available_menu_ids(auth, tenant_id)
     _package_menu_cache[tenant_id] = (time.time(), result)
     return result
-
-
-# ── 权限验证类 ──
 
 
 class AuthPermission:
@@ -356,7 +343,8 @@ class AuthPermission:
         返回:
         - AuthSchema: 认证信息对象。
         """
-        auth.check_data_scope = self.check_data_scope
+        # 用 model_copy 派生一份带正确 check_data_scope 的新实例（不修改原实例）
+        auth = auth.model_copy(update={"check_data_scope": self.check_data_scope})
 
         # 超级管理员直接通过
         if auth.user and auth.user.is_superuser:
@@ -405,21 +393,24 @@ def require_superadmin(func):
     """
     装饰器：仅超级管理员可调用 Service 方法。
 
-    自动校验 auth 参数的 is_superuser 属性，非超管直接抛出 403。
-    适用于 classmethod Service 方法，auth 必须是第二个参数（cls 之后）。
+    自动校验 ``self.auth.user.is_superuser`` 属性，非超管直接抛出 403。
+    适用于实例方法（``Service(auth).xxx(...)``），由 ``self.auth`` 取认证上下文。
 
     用法:
-        @classmethod
-        @require_superadmin
-        async def create_service(cls, auth: AuthSchema, ...) -> ...:
-            ...
+        class XxxService:
+            def __init__(self, auth: AuthSchema) -> None:
+                self.auth = auth
+
+            @require_superadmin
+            async def create(self, data: ...) -> ...:
+                ...
     """
     from functools import wraps
 
     @wraps(func)
-    async def wrapper(cls, auth: AuthSchema, *args, **kwargs):
-        if not auth.user or not auth.user.is_superuser:
+    async def wrapper(self, *args, **kwargs):
+        if not self.auth.user or not self.auth.user.is_superuser:
             raise CustomException(msg="仅平台管理员可操作")
-        return await func(cls, auth, *args, **kwargs)
+        return await func(self, *args, **kwargs)
 
     return wrapper

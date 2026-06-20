@@ -6,7 +6,7 @@ from app.core.base_model import ModelMixin, TenantMixin, UserMixin
 
 class WorkflowModel(ModelMixin, TenantMixin, UserMixin):
     """
-    工作流定义：Vue Flow 画布序列化 + Prefect 运行时执行
+    工作流定义：Vue Flow 画布序列化 + 拓扑分层并行执行
     """
 
     __tablename__: str = "task_workflow"

@@ -297,14 +297,14 @@ class Jinja2TemplateUtil:
         - List[str]: 模板路径列表。
         """
         templates = [
-            "python/controller.py.j2",
-            "python/service.py.j2",
-            "python/crud.py.j2",
-            "python/schema.py.j2",
-            "python/model.py.j2",
-            "python/__init__.py.j2",
-            "ts/api.ts.j2",
-            "vue/index.vue.j2",
+            "python/controller.py.jinja2",
+            "python/service.py.jinja2",
+            "python/crud.py.jinja2",
+            "python/schema.py.jinja2",
+            "python/model.py.jinja2",
+            "python/__init__.py.jinja2",
+            "ts/api.ts.jinja2",
+            "vue/index.vue.jinja2",
         ]
         return templates
 
@@ -320,9 +320,9 @@ class Jinja2TemplateUtil:
         - List[str]: 子表模板路径列表。
         """
         return [
-            "python/model.py.j2",
-            "python/schema.py.j2",
-            "python/__init__.py.j2",
+            "python/model.py.jinja2",
+            "python/schema.py.jinja2",
+            "python/__init__.py.jinja2",
         ]
 
     @classmethod
@@ -358,14 +358,14 @@ class Jinja2TemplateUtil:
         api_path = f"{frontend_api_base}/{module_name}.ts"
 
         template_mapping = {
-            "controller.py.j2": f"{backend_dir}/controller.py",
-            "service.py.j2": f"{backend_dir}/service.py",
-            "crud.py.j2": f"{backend_dir}/crud.py",
-            "schema.py.j2": f"{backend_dir}/schema.py",
-            "model.py.j2": f"{backend_dir}/model.py",
-            "__init__.py.j2": f"{backend_dir}/__init__.py",
-            "api.ts.j2": api_path,
-            "index.vue.j2": f"{view_dir}/index.vue",
+            "controller.py.jinja2": f"{backend_dir}/controller.py",
+            "service.py.jinja2": f"{backend_dir}/service.py",
+            "crud.py.jinja2": f"{backend_dir}/crud.py",
+            "schema.py.jinja2": f"{backend_dir}/schema.py",
+            "model.py.jinja2": f"{backend_dir}/model.py",
+            "__init__.py.jinja2": f"{backend_dir}/__init__.py",
+            "api.ts.jinja2": api_path,
+            "index.vue.jinja2": f"{view_dir}/index.vue",
         }
 
         # 查找匹配的模板路径

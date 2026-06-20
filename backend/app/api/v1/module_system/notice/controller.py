@@ -22,10 +22,9 @@ from .schema import (
 )
 from .service import NoticeService
 
-NoticeRouter = APIRouter(route_class=OperationLogRoute, prefix="/notice", tags=["公告通知"])
+NoticeRouter = APIRouter(route_class=OperationLogRoute, prefix="/notice", tags=["系统管理", "公告通知"])
 
 _NOTICE_NS = "notice"
-
 
 @NoticeRouter.get(
     "/detail/{id}",
@@ -36,19 +35,8 @@ async def get_notice_detail_controller(
     id: Annotated[int, Path(description="公告ID")],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_system:notice:detail"]))],
 ) -> JSONResponse:
-    """
-    获取公告详情。
-
-    参数:
-    - id (int): 公告ID。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含公告详情的响应模型。
-    """
-    result_dict = await NoticeService.detail_service(id=id, auth=auth)
+    result_dict = await NoticeService(auth).detail(id=id)
     return SuccessResponse(data=result_dict, msg="获取公告详情成功")
-
 
 @NoticeRouter.get(
     "/list",
@@ -60,26 +48,13 @@ async def get_notice_list_controller(
     search: Annotated[NoticeQueryParam, Depends()],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_system:notice:query"]))],
 ) -> JSONResponse:
-    """
-    查询公告。
-
-    参数:
-    - page (PaginationQueryParam): 分页查询参数模型。
-    - search (NoticeQueryParam): 查询公告参数模型。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含分页公告详情的响应模型。
-    """
-    result_dict = await NoticeService.page_service(
-        auth=auth,
+    result_dict = await NoticeService(auth).page(
         page_no=page.page_no,
         page_size=page.page_size,
         search=search,
         order_by=page.order_by,
     )
     return SuccessResponse(data=result_dict, msg="查询公告列表成功")
-
 
 @NoticeRouter.post(
     "/create",
@@ -90,20 +65,9 @@ async def create_notice_controller(
     data: NoticeCreateSchema,
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_system:notice:create"]))],
 ) -> JSONResponse:
-    """
-    创建公告。
-
-    参数:
-    - data (NoticeCreateSchema): 创建公告负载模型。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含创建公告结果的响应模型。
-    """
-    result_dict = await NoticeService.create_service(auth=auth, data=data)
+    result_dict = await NoticeService(auth).create(data=data)
     await FastAPICache.clear(namespace=_NOTICE_NS)
     return SuccessResponse(data=result_dict, msg="创建公告成功")
-
 
 @NoticeRouter.put(
     "/update/{id}",
@@ -115,21 +79,9 @@ async def update_notice_controller(
     id: Annotated[int, Path(description="公告ID")],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_system:notice:update"]))],
 ) -> JSONResponse:
-    """
-    修改公告。
-
-    参数:
-    - data (NoticeUpdateSchema): 修改公告负载模型。
-    - id (int): 公告ID。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含修改公告结果的响应模型。
-    """
-    result_dict = await NoticeService.update_service(auth=auth, id=id, data=data)
+    result_dict = await NoticeService(auth).update(id=id, data=data)
     await FastAPICache.clear(namespace=_NOTICE_NS)
     return SuccessResponse(data=result_dict, msg="修改公告成功")
-
 
 @NoticeRouter.delete(
     "/delete",
@@ -140,20 +92,9 @@ async def delete_notice_controller(
     ids: Annotated[list[int], Body(description="ID列表")],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_system:notice:delete"]))],
 ) -> JSONResponse:
-    """
-    删除公告。
-
-    参数:
-    - ids (list[int]): 公告ID列表。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含删除公告结果的响应模型。
-    """
-    await NoticeService.delete_service(auth=auth, ids=ids)
+    await NoticeService(auth).delete(ids=ids)
     await FastAPICache.clear(namespace=_NOTICE_NS)
     return SuccessResponse(msg="删除公告成功")
-
 
 @NoticeRouter.patch(
     "/status/batch",
@@ -164,20 +105,9 @@ async def batch_set_available_notice_controller(
     data: BatchSetAvailable,
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_system:notice:patch"]))],
 ) -> JSONResponse:
-    """
-    批量修改公告状态。
-
-    参数:
-    - data (BatchSetAvailable): 批量修改公告状态负载模型。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含批量修改公告状态结果的响应模型。
-    """
-    await NoticeService.set_available_service(auth=auth, data=data)
+    await NoticeService(auth).set_available(data=data)
     await FastAPICache.clear(namespace=_NOTICE_NS)
     return SuccessResponse(msg="批量修改公告状态成功")
-
 
 @NoticeRouter.post(
     "/export",
@@ -187,26 +117,15 @@ async def export_notice_list_controller(
     search: Annotated[NoticeQueryParam, Depends()],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_system:notice:export"]))],
 ) -> StreamingResponse:
-    """
-    导出公告。
-
-    参数:
-    - search (NoticeQueryParam): 查询公告参数模型。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - StreamingResponse: 包含导出公告的流式响应模型。
-    """
-    result_dict_list = await NoticeService.list_service(search=search, auth=auth)
+    result_dict_list = await NoticeService(auth).list(search=search)
     export_data = [item.model_dump() for item in result_dict_list]
-    export_result = await NoticeService.export_notice_service(notice_list=export_data)
+    export_result = NoticeService.export(notice_list=export_data)
 
     return StreamResponse(
         data=bytes2file_response(export_result),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=notice.xlsx"},
     )
-
 
 @NoticeRouter.get(
     "/available",
@@ -217,18 +136,8 @@ async def export_notice_list_controller(
 async def get_notice_list_available_controller(
     auth: Annotated[AuthSchema, Depends(get_current_user)],
 ) -> JSONResponse:
-    """
-    获取全局启用公告。
-
-    参数:
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含分页已启用公告详情的响应模型。
-    """
-    result_dict = await NoticeService.available_page_service(auth=auth)
+    result_dict = await NoticeService(auth).available_page()
     return SuccessResponse(data=result_dict, msg="查询已启用公告列表成功")
-
 
 @NoticeRouter.get(
     "/panel",
@@ -240,12 +149,8 @@ async def get_notification_panel_controller(
     auth: Annotated[AuthSchema, Depends(get_current_user)],
 ) -> JSONResponse:
     """通知面板聚合接口，返回通知、消息、待办三个列表。"""
-    result = await NoticeService.get_panel_data_service(auth=auth)
+    result = await NoticeService(auth).panel_data()
     return SuccessResponse(data=result, msg="获取面板数据成功")
-
-
-# ============ 已读追踪端点 ============
-
 
 @NoticeRouter.post(
     "/read/{id}",
@@ -257,11 +162,10 @@ async def mark_read_controller(
     auth: Annotated[AuthSchema, Depends(get_current_user)],
 ) -> JSONResponse:
     """标记已读。通过 `sys_notice_read` 表记录已读时间。"""
-    await NoticeService.mark_read_service(auth=auth, notice_id=id)
+    await NoticeService(auth).mark_read(notice_id=id)
     await FastAPICache.clear(namespace=_NOTICE_NS)
     logger.info(f"用户[{auth.user.id}]标记通知[{id}]已读")
     return SuccessResponse(msg="标记已读成功")
-
 
 @NoticeRouter.post(
     "/read-all",
@@ -272,11 +176,10 @@ async def mark_all_read_controller(
     auth: Annotated[AuthSchema, Depends(get_current_user)],
 ) -> JSONResponse:
     """全部标记已读。返回本次操作标记的数量。"""
-    count = await NoticeService.mark_all_read_service(auth=auth)
+    count = await NoticeService(auth).mark_all_read()
     await FastAPICache.clear(namespace=_NOTICE_NS)
     logger.info(f"用户[{auth.user.id}]全部已读, 数量={count}")
     return SuccessResponse(data=count, msg=f"全部标记已读成功，共标记 {count} 条")
-
 
 @NoticeRouter.get(
     "/unread-count",
@@ -288,5 +191,5 @@ async def get_unread_count_controller(
     auth: Annotated[AuthSchema, Depends(get_current_user)],
 ) -> JSONResponse:
     """获取未读通知数量。通过 LEFT JOIN 统计未读数。"""
-    count = await NoticeService.get_unread_count_service(auth=auth)
+    count = await NoticeService(auth).get_unread_count()
     return SuccessResponse(data=count, msg="获取未读数量成功")

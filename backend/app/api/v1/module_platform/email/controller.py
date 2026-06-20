@@ -24,8 +24,7 @@ from .schema import (
 )
 from .service import EmailConfigService, EmailLogService, EmailSendService, EmailTemplateService
 
-EmailRouter = APIRouter(route_class=OperationLogRoute, prefix="/email", tags=["平台管理/邮件服务"])
-
+EmailRouter = APIRouter(route_class=OperationLogRoute, prefix="/email", tags=["平台管理", "邮件服务"])
 
 @EmailRouter.get("/config/list", summary="SMTP 配置列表", response_model=ResponseSchema[PageResultSchema[EmailConfigOutSchema]])
 async def email_config_list_controller(
@@ -33,18 +32,7 @@ async def email_config_list_controller(
     search: Annotated[EmailConfigQueryParam, Depends()],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:query"]))],
 ):
-    """
-    SMTP 配置列表
-
-    参数:
-    - page (PaginationQueryParam): 分页查询参数。
-    - search (EmailConfigQueryParam): 查询筛选参数。
-
-    返回:
-    - SuccessResponse: 包含分页配置列表的 JSON 响应。
-    """
-    result = await EmailConfigService.page_service(
-        auth=auth,
+    result = await EmailConfigService(auth).page(
         page_no=page.page_no,
         page_size=page.page_size,
         search=search,
@@ -52,42 +40,21 @@ async def email_config_list_controller(
     )
     return SuccessResponse(data=result, msg="查询成功")
 
-
 @EmailRouter.get("/config/detail/{id}", summary="SMTP 配置详情", response_model=ResponseSchema[EmailConfigOutSchema])
 async def email_config_detail_controller(
     id: Annotated[int, Path()],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:query"]))],
 ):
-    """
-    SMTP 配置详情
-
-    参数:
-    - id (int): 配置 ID。
-
-    返回:
-    - SuccessResponse: 包含配置详情的 JSON 响应。
-    """
-    result = await EmailConfigService.detail_service(auth=auth, id=id)
+    result = await EmailConfigService(auth).detail(id=id)
     return SuccessResponse(data=result, msg="查询成功")
-
 
 @EmailRouter.post("/config/create", summary="创建 SMTP 配置", response_model=ResponseSchema[EmailConfigOutSchema])
 async def email_config_create_controller(
     data: EmailConfigCreateSchema,
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:update"]))],
 ):
-    """
-    创建 SMTP 配置
-
-    参数:
-    - data (EmailConfigCreateSchema): 配置创建参数。
-
-    返回:
-    - SuccessResponse: 包含创建后的配置详情的 JSON 响应。
-    """
-    result = await EmailConfigService.create_service(auth=auth, data=data)
+    result = await EmailConfigService(auth).create(data=data)
     return SuccessResponse(data=result, msg="创建成功")
-
 
 @EmailRouter.put("/config/update/{id}", summary="更新 SMTP 配置", response_model=ResponseSchema[EmailConfigOutSchema])
 async def email_config_update_controller(
@@ -95,55 +62,24 @@ async def email_config_update_controller(
     data: EmailConfigUpdateSchema,
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:update"]))],
 ):
-    """
-    更新 SMTP 配置
-
-    参数:
-    - id (int): 配置 ID。
-    - data (EmailConfigUpdateSchema): 配置更新参数。
-
-    返回:
-    - SuccessResponse: 包含更新后的配置详情的 JSON 响应。
-    """
-    result = await EmailConfigService.update_service(auth=auth, id=id, data=data)
+    result = await EmailConfigService(auth).update(id=id, data=data)
     return SuccessResponse(data=result, msg="更新成功")
-
 
 @EmailRouter.delete("/config/delete", summary="删除 SMTP 配置", response_model=ResponseSchema[None])
 async def email_config_delete_controller(
     ids: Annotated[list[int], Body()],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:update"]))],
 ):
-    """
-    删除 SMTP 配置
-
-    参数:
-    - ids (list[int]): 配置 ID 列表。
-
-    返回:
-    - SuccessResponse: 删除结果。
-    """
-    await EmailConfigService.delete_service(auth=auth, ids=ids)
+    await EmailConfigService(auth).delete(ids=ids)
     return SuccessResponse(msg="删除成功")
-
 
 @EmailRouter.post("/config/test", summary="测试 SMTP 连接", response_model=ResponseSchema)
 async def email_config_test_controller(
     data: EmailTestSchema,
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:update"]))],
 ):
-    """
-    测试 SMTP 连接
-
-    参数:
-    - data (EmailTestSchema): 测试参数（配置 ID 与目标邮箱）。
-
-    返回:
-    - SuccessResponse: 包含测试结果的 JSON 响应。
-    """
-    result = await EmailConfigService.test_service(auth=auth, data=data)
+    result = await EmailConfigService(auth).test(data=data)
     return SuccessResponse(data=result, msg="测试邮件已发送")
-
 
 @EmailRouter.get("/template/list", summary="邮件模板列表", response_model=ResponseSchema[PageResultSchema[EmailTemplateOutSchema]])
 async def email_template_list_controller(
@@ -151,18 +87,7 @@ async def email_template_list_controller(
     search: Annotated[EmailTemplateQueryParam, Depends()],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:query"]))],
 ):
-    """
-    邮件模板列表
-
-    参数:
-    - page (PaginationQueryParam): 分页查询参数。
-    - search (EmailTemplateQueryParam): 查询筛选参数。
-
-    返回:
-    - SuccessResponse: 包含分页模板列表的 JSON 响应。
-    """
-    result = await EmailTemplateService.page_service(
-        auth=auth,
+    result = await EmailTemplateService(auth).page(
         page_no=page.page_no,
         page_size=page.page_size,
         search=search,
@@ -170,42 +95,21 @@ async def email_template_list_controller(
     )
     return SuccessResponse(data=result, msg="查询成功")
 
-
 @EmailRouter.get("/template/detail/{id}", summary="邮件模板详情", response_model=ResponseSchema[EmailTemplateOutSchema])
 async def email_template_detail_controller(
     id: Annotated[int, Path()],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:query"]))],
 ):
-    """
-    邮件模板详情
-
-    参数:
-    - id (int): 模板 ID。
-
-    返回:
-    - SuccessResponse: 包含模板详情的 JSON 响应。
-    """
-    result = await EmailTemplateService.detail_service(auth=auth, id=id)
+    result = await EmailTemplateService(auth).detail(id=id)
     return SuccessResponse(data=result, msg="查询成功")
-
 
 @EmailRouter.post("/template/create", summary="创建邮件模板", response_model=ResponseSchema[EmailTemplateOutSchema])
 async def email_template_create_controller(
     data: EmailTemplateCreateSchema,
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:update"]))],
 ):
-    """
-    创建邮件模板
-
-    参数:
-    - data (EmailTemplateCreateSchema): 模板创建参数。
-
-    返回:
-    - SuccessResponse: 包含创建后的模板详情的 JSON 响应。
-    """
-    result = await EmailTemplateService.create_service(auth=auth, data=data)
+    result = await EmailTemplateService(auth).create(data=data)
     return SuccessResponse(data=result, msg="创建成功")
-
 
 @EmailRouter.put("/template/update/{id}", summary="更新邮件模板", response_model=ResponseSchema[EmailTemplateOutSchema])
 async def email_template_update_controller(
@@ -213,55 +117,24 @@ async def email_template_update_controller(
     data: EmailTemplateUpdateSchema,
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:update"]))],
 ):
-    """
-    更新邮件模板
-
-    参数:
-    - id (int): 模板 ID。
-    - data (EmailTemplateUpdateSchema): 模板更新参数。
-
-    返回:
-    - SuccessResponse: 包含更新后的模板详情的 JSON 响应。
-    """
-    result = await EmailTemplateService.update_service(auth=auth, id=id, data=data)
+    result = await EmailTemplateService(auth).update(id=id, data=data)
     return SuccessResponse(data=result, msg="更新成功")
-
 
 @EmailRouter.delete("/template/delete", summary="删除邮件模板", response_model=ResponseSchema[None])
 async def email_template_delete_controller(
     ids: Annotated[list[int], Body()],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:update"]))],
 ):
-    """
-    删除邮件模板
-
-    参数:
-    - ids (list[int]): 模板 ID 列表。
-
-    返回:
-    - SuccessResponse: 删除结果。
-    """
-    await EmailTemplateService.delete_service(auth=auth, ids=ids)
+    await EmailTemplateService(auth).delete(ids=ids)
     return SuccessResponse(msg="删除成功")
-
 
 @EmailRouter.post("/send", summary="手动发送邮件（超管测试/补发）", response_model=ResponseSchema)
 async def email_send_controller(
     data: EmailSendSchema,
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:update"]))],
 ):
-    """
-    手动发送邮件
-
-    参数:
-    - data (EmailSendSchema): 发送参数（模板代码、目标邮箱、模板变量）。
-
-    返回:
-    - SuccessResponse: 包含发送结果的 JSON 响应。
-    """
-    result = await EmailSendService.manual_send_service(auth=auth, data=data)
+    result = await EmailSendService(auth).manual_send(data=data)
     return SuccessResponse(data=result, msg="发送成功")
-
 
 @EmailRouter.get("/log/list", summary="邮件发送日志", response_model=ResponseSchema[PageResultSchema[EmailLogOutSchema]])
 async def email_log_list_controller(
@@ -269,18 +142,7 @@ async def email_log_list_controller(
     search: Annotated[EmailLogQueryParam, Depends()],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_platform:email:query"]))],
 ):
-    """
-    邮件发送日志
-
-    参数:
-    - page (PaginationQueryParam): 分页查询参数。
-    - search (EmailLogQueryParam): 查询筛选参数。
-
-    返回:
-    - SuccessResponse: 包含分页日志列表的 JSON 响应。
-    """
-    result = await EmailLogService.page_service(
-        auth=auth,
+    result = await EmailLogService(auth).page(
         page_no=page.page_no,
         page_size=page.page_size,
         search=search,

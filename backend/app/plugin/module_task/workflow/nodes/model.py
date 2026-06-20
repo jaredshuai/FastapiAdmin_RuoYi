@@ -6,7 +6,7 @@ from app.core.base_model import ModelMixin, TenantMixin, UserMixin
 
 class WorkflowNodeTypeModel(ModelMixin, TenantMixin, UserMixin):
     """
-    编排节点类型：用于 Vue Flow 左侧 palette 与 Prefect 运行时解析。
+    编排节点类型：用于 Vue Flow 左侧 palette 与执行引擎解析。
     """
 
     __tablename__: str = "task_workflow_node_type"

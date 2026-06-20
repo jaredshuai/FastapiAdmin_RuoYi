@@ -124,6 +124,17 @@ class InvoiceTenantService:
         )
 
 
+    @classmethod
+    async def download(cls, auth: AuthSchema, invoice_id: int, tenant_id: int) -> str:
+        crud = InvoiceCRUD(auth)
+        invoice = await crud.get_or_404(id=invoice_id, msg="发票不存在")
+        if hasattr(invoice, "tenant_id") and invoice.tenant_id != tenant_id:
+            raise CustomException(msg="发票不存在")
+        if invoice.status != 1 or not invoice.pdf_url:
+            raise CustomException(msg="发票未开具或无PDF")
+        return invoice.pdf_url
+
+
 class InvoicePlatformService:
     """平台端发票服务"""
 

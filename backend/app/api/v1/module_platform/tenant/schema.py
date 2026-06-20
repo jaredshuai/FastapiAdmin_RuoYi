@@ -203,9 +203,6 @@ class TenantUserOutSchema(BaseModel):
     name: str = Field(default="", description="用户姓名")
 
 
-# ============ P1: 租户配置 ============
-
-
 class TenantConfigItem(BaseModel):
     """租户配置项"""
 
@@ -222,9 +219,6 @@ class TenantConfigOutSchema(BaseModel):
     config_value: str | None = Field(default=None, description="配置值")
 
 
-# ============ 续期 ============
-
-
 class TenantRenewSchema(BaseModel):
     """租户续期"""
 
@@ -237,9 +231,6 @@ class TenantRenewSchema(BaseModel):
         if self.end_time <= datetime.now():
             raise ValueError("续期时间必须晚于当前时间")
         return self
-
-
-# ============ 套餐变更预览 ============
 
 
 class PackageChangePreviewOut(BaseModel):

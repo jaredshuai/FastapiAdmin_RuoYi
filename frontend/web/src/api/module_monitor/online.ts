@@ -42,7 +42,7 @@ export interface OnlineUserTable {
   session_id: string;
   user_id: number;
   tenant_id?: number;
-  is_super_admin?: boolean;
+  is_superuser?: boolean;
   name: string;
   user_name: string;
   ipaddr?: string;

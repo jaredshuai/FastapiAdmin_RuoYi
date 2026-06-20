@@ -29,8 +29,7 @@ def fake_auth() -> AuthSchema:
     return AuthSchema(
         db=mock_db,
         user=fake_user,
-        is_super_admin=True,
-        check_data_scope=False,
+        tenant_id=fake_user.tenant_id,
     )
 
 
@@ -291,7 +290,8 @@ class TestAuthModule:
         from app.core.base_schema import AuthSchema
 
         assert "user" in AuthSchema.model_fields
-        assert "check_data_scope" in AuthSchema.model_fields
+        assert "db" in AuthSchema.model_fields
+        assert "tenant_id" in AuthSchema.model_fields
 
     def test_login_flow_mock(self) -> None:
         """验证登录相关 schema 逻辑"""

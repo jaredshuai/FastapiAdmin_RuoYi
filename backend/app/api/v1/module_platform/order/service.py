@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.core.base_schema import AuthSchema
 from app.core.exceptions import CustomException
 from app.core.logger import logger
-from app.core.payment import create_payment_gateway
+from app.utils.payment import create_payment_gateway
 
 from .crud import OrderCRUD, PaymentRecordCRUD, RefundCRUD
 from .model import OrderModel
@@ -186,15 +186,23 @@ class OrderService:
             pay_time=order.pay_time.isoformat() if order.pay_time else None,
         )
 
-    @classmethod
-    async def cancel_expired_orders(cls) -> None:
-        """
-        定时任务：取消超时未支付的订单
+    @staticmethod
+    async def cancel_expired_orders() -> None:
+        from sqlalchemy import update as sa_update
 
-        返回:
-        - None
-        """
-        await OrderCRUD.cancel_expired_orders()
+        from app.core.database import async_db_session
+
+        now = datetime.now()
+        async with async_db_session() as session:
+            async with session.begin():
+                result = await session.execute(
+                    sa_update(OrderModel)
+                    .where(OrderModel.status == 0)
+                    .where(OrderModel.expire_time < now)
+                    .where(OrderModel.is_deleted == False)  # noqa: E712
+                    .values(status=2)
+                )
+            logger.info(f"超时订单取消: 已取消 {result.rowcount} 条订单")
 
 
 class PaymentService:
@@ -373,7 +381,7 @@ class PaymentService:
         await auth.db.flush()
 
         if tenant.contact_email:
-            await PaymentService._send_order_email(order, pkg, tenant)
+            await PaymentService._send_order_email(auth, order, pkg, tenant)
 
     @classmethod
     async def _activate_plugin(cls, auth: AuthSchema, order: OrderModel) -> None:
@@ -422,7 +430,7 @@ class PaymentService:
 
         tenant = await auth.db.get(TenantModel, order.tenant_id)
         if tenant and tenant.contact_email:
-            await PaymentService._send_order_email(order, plugin, tenant, order_type_label="购买")
+            await PaymentService._send_order_email(auth, order, plugin, tenant, order_type_label="购买")
 
     @classmethod
     async def _check_downgrade_quota(cls, auth: AuthSchema, tenant_id: int, new_pkg: object) -> None:
@@ -466,7 +474,7 @@ class PaymentService:
                 raise CustomException(msg=f"降级失败：当前租户已有 {current} 个{label}，超过目标套餐限额 {limit}")
 
     @classmethod
-    async def _send_order_email(cls, order: "OrderModel", product: object, tenant: object, order_type_label: str = "") -> None:
+    async def _send_order_email(cls, auth: AuthSchema, order: "OrderModel", product: object, tenant: object, order_type_label: str = "") -> None:
         """
         发送购买确认邮件（失败静默降级）
 
@@ -495,7 +503,7 @@ class PaymentService:
             product_name = getattr(product, "name", "") if product else ""
             amount_str = f"{order.amount / 100:.2f}" if order.amount else "0.00"
 
-            await EmailSendService.send_by_template(
+            await EmailSendService(auth).send_by_template(
                 to_email=tenant.contact_email,
                 to_name=tenant.contact_name or tenant.name,
                 template_code="order_confirmation",

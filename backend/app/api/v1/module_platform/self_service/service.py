@@ -355,13 +355,12 @@ class SelfService:
         )
 
     @classmethod
-    async def get_self_order_detail(cls, auth: AuthSchema, tenant_id: int, order_id: int) -> SelfOrderDetailOut:
+    async def get_self_order_detail(cls, auth: AuthSchema, order_id: int) -> SelfOrderDetailOut:
         """
         订单详情
 
         参数:
         - auth (AuthSchema): 认证信息模型
-        - tenant_id (int): 租户ID
         - order_id (int): 订单ID
 
         返回:
@@ -407,12 +406,10 @@ class SelfService:
                 quota=WorkspaceQuotaInfo(),
             )
 
-        # ── 套餐 ──
         package = None
         if tenant.package_id:
             package = await auth.db.get(PackageModel, tenant.package_id)
 
-        # ── 用量计数 ──
         async def _count(model_cls) -> int:
             stmt = (
                 select(func.count())
@@ -428,7 +425,6 @@ class SelfService:
         role_count = await _count(RoleModel)
         dept_count = await _count(DeptModel)
 
-        # ── 到期状态 ──
         now = datetime.now()
         days_remaining = (tenant.end_time - now).days if tenant.end_time else 0
 
@@ -441,7 +437,6 @@ class SelfService:
             "5": "已归档",
         }
 
-        # ── 近期订单 ──
         orders_stmt = select(OrderModel).where(OrderModel.tenant_id == tenant_id).order_by(OrderModel.created_time.desc()).limit(5)
         orders_result = await auth.db.execute(orders_stmt)
         recent_orders = []

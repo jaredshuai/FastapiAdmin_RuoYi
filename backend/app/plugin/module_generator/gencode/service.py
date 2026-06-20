@@ -70,8 +70,11 @@ _MENU_TYPE_MENU = 2
 class GenTableService:
     """代码生成业务表服务层"""
 
-    @classmethod
-    async def _effective_package_name(cls, auth: AuthSchema, parent_catalog_id: int | None, package_name: str | None) -> str:
+    def __init__(self, auth: AuthSchema) -> None:
+        self.auth = auth
+
+
+    async def _effective_package_name(self, parent_catalog_id: int | None, package_name: str | None) -> str:
         """根据「是否选择上级目录」计算最终包名（分系统根目录）。
 
         规则（与你描述一致）：
@@ -83,7 +86,7 @@ class GenTableService:
         if parent_catalog_id is not None:
             from app.api.v1.module_platform.menu.crud import MenuCRUD
 
-            m = await MenuCRUD(auth).get(id=parent_catalog_id)
+            m = await MenuCRUD(self.auth).get(id=parent_catalog_id)
             if not m:
                 raise CustomException(msg="上级菜单不存在")
             route_path = (getattr(m, "route_path", None) or "").strip()
@@ -102,20 +105,19 @@ class GenTableService:
             raise CustomException(msg="包名不能为空")
         return pn if pn.startswith("module_") else f"module_{pn}"
 
-    @classmethod
-    async def _assert_parent_menu_is_catalog(cls, auth: AuthSchema, parent_menu_id: int | None) -> None:
+    async def _assert_parent_menu_is_catalog(self, parent_menu_id: int | None) -> None:
         """上级菜单仅允许目录：与前端树只展示目录一致，避免挂到菜单/按钮下。"""
         if parent_menu_id is None:
             return
         from app.api.v1.module_platform.menu.crud import MenuCRUD
 
-        m = await MenuCRUD(auth).get(id=parent_menu_id)
+        m = await MenuCRUD(self.auth).get(id=parent_menu_id)
         if not m:
             raise CustomException(msg="上级菜单不存在")
         if m.type != _MENU_TYPE_CATALOG:
             raise CustomException(msg="上级菜单须选择目录类型")
 
-    @classmethod
+    @staticmethod
     def _menu_route_first_segment(cls, parent_catalog_id: int | None, package_name: str, module_name: str | None) -> str:
         """前端页面路由首段（与菜单 ``route_path`` 第一段一致）。
 
@@ -128,7 +130,6 @@ class GenTableService:
             raise CustomException(msg="包名不能为空")
         return pn if pn.startswith("module_") else f"module_{pn}"
 
-    @classmethod
     def _catalog_menu_dir_key(cls, parent_catalog_id: int | None, package_name: str, module_name: str | None) -> str:
         """菜单上「模块目录」节点的 name（与路由第一段 package 独立）。
 
@@ -144,9 +145,8 @@ class GenTableService:
             raise CustomException(msg="模块名不能为空")
         return mn
 
-    @classmethod
     async def _get_or_create_package_directory_menu(
-        cls,
+        self,
         menu_crud: Any,
         parent_catalog_id: int | None,
         package_name: str,
@@ -161,7 +161,7 @@ class GenTableService:
         if not pn:
             raise CustomException(msg="包名不能为空")
         mn = (module_name or "").strip()
-        dir_key = cls._catalog_menu_dir_key(parent_catalog_id, pn, module_name)
+        dir_key = self._catalog_menu_dir_key(parent_catalog_id, pn, module_name)
 
         if parent_catalog_id is not None:
             existing = await menu_crud.get(name=dir_key, type=_MENU_TYPE_CATALOG, parent_id=parent_catalog_id)
@@ -171,7 +171,7 @@ class GenTableService:
             logger.info(f"代码生成：复用模块目录菜单 id={existing.id} name={dir_key!r} parent={parent_catalog_id!r}")
             return int(existing.id)
 
-        route_first = cls._menu_route_first_segment(parent_catalog_id, pn, module_name)
+        route_first = self._menu_route_first_segment(parent_catalog_id, pn, module_name)
         # 目录菜单固定跳到模块根：/{module_xxx}/{module_name}
         catalog_route_path = f"/{route_first}/{mn}"
         redirect = f"/{route_first}/{mn}"
@@ -202,7 +202,7 @@ class GenTableService:
         logger.info(f"代码生成：新建模块目录菜单 id={created.id} name={dir_key!r} under_parent={parent_catalog_id!r}")
         return int(created.id)
 
-    @classmethod
+    @staticmethod
     def normalize_and_validate_master_sub(cls, data: GenTableSchema) -> None:
         """
         主子表业务规则：子表表名与外键列同填或同空；子表表名不得与主表相同。
@@ -224,9 +224,8 @@ class GenTableService:
         if sn and fk and sn == tn:
             raise CustomException(msg="子表表名不能与主表表名相同")
 
-    @classmethod
     @handle_service_exception
-    async def get_gen_table_detail_service(cls, auth: AuthSchema, table_id: int) -> GenTableOutSchema:
+    async def get_gen_table_detail(self, table_id: int) -> GenTableOutSchema:
         """获取详细信息。
 
         参数:
@@ -236,12 +235,11 @@ class GenTableService:
         返回:
         - dict: 包含业务表详细信息的字典。
         """
-        gen_table = await cls.get_gen_table_by_id_service(auth, table_id)
+        gen_table = await self.get_gen_table_by_id(table_id)
         return gen_table
 
-    @classmethod
     @handle_service_exception
-    async def get_gen_table_list_service(cls, auth: AuthSchema, search: GenTableQueryParam) -> list[dict]:
+    async def get_gen_table_list(self, search: GenTableQueryParam) -> list[dict]:
         """
         获取代码生成业务表列表信息。
 
@@ -252,14 +250,12 @@ class GenTableService:
         返回:
         - list[dict]: 包含业务表列表信息的字典列表。
         """
-        gen_table_list_result = await GenTableCRUD(auth=auth).get_gen_table_list(search)
+        gen_table_list_result = await GenTableCRUD(auth=self.auth).get_gen_table_list(search)
         return [GenTableOutSchema.model_validate(obj) for obj in gen_table_list_result]
 
-    @classmethod
     @handle_service_exception
-    async def get_gen_table_page_service(
-        cls,
-        auth: AuthSchema,
+    async def get_gen_table_page(
+        self,
         page_no: int,
         page_size: int,
         search: GenTableQueryParam,
@@ -280,7 +276,7 @@ class GenTableService:
         """
         offset = (page_no - 1) * page_size
         order = order_by or [{"created_time": "desc"}]
-        return await GenTableCRUD(auth=auth).page(
+        return await GenTableCRUD(auth=self.auth).page(
             offset=offset,
             limit=page_size,
             order_by=order,
@@ -288,9 +284,8 @@ class GenTableService:
             out_schema=GenTableOutSchema,
         )
 
-    @classmethod
     @handle_service_exception
-    async def get_gen_db_table_list_service(cls, auth: AuthSchema, search: GenTableQueryParam) -> list[Any]:
+    async def get_gen_db_table_list(self, search: GenTableQueryParam) -> list[Any]:
         """获取数据库表列表。
 
         参数:
@@ -300,14 +295,12 @@ class GenTableService:
         返回:
         - list[Any]: 包含数据库表列表信息的任意类型列表。
         """
-        gen_db_table_list_result = await GenTableCRUD(auth=auth).get_db_table_list(search)
+        gen_db_table_list_result = await GenTableCRUD(auth=self.auth).get_db_table_list(search)
         return gen_db_table_list_result
 
-    @classmethod
     @handle_service_exception
-    async def get_gen_db_table_page_service(
-        cls,
-        auth: AuthSchema,
+    async def get_gen_db_table_page(
+        self,
         page_no: int,
         page_size: int,
         search: GenTableQueryParam,
@@ -325,7 +318,7 @@ class GenTableService:
         - dict[str, Any]: 含 items、total、has_next 等字段。
         """
         offset = (page_no - 1) * page_size
-        items, total = await GenTableCRUD(auth=auth).get_db_table_page(search=search, offset=offset, limit=page_size)
+        items, total = await GenTableCRUD(auth=self.auth).get_db_table_page(search=search, offset=offset, limit=page_size)
         return {
             "items": items,
             "total": total,
@@ -334,9 +327,8 @@ class GenTableService:
             "has_next": offset + page_size < total,
         }
 
-    @classmethod
     @handle_service_exception
-    async def get_gen_db_table_list_by_name_service(cls, auth: AuthSchema, table_names: list[str]) -> list[GenTableOutSchema]:
+    async def get_gen_db_table_list_by_name(self, table_names: list[str]) -> list[GenTableOutSchema]:
         """根据表名称组获取数据库表信息。
 
         参数:
@@ -346,16 +338,15 @@ class GenTableService:
         返回:
         - list[GenTableOutSchema]: 包含业务表详细信息的模型列表。
         """
-        gen_db_table_list_result = await GenTableCRUD(auth).get_db_table_list_by_names(table_names)
+        gen_db_table_list_result = await GenTableCRUD(auth=self.auth).get_db_table_list_by_names(table_names)
 
         # 修复：将GenDBTableSchema对象转换为字典后再传递给GenTableOutSchema
         result = [GenTableOutSchema(**gen_table.model_dump()) for gen_table in gen_db_table_list_result]
 
         return result
 
-    @classmethod
     @handle_service_exception
-    async def import_gen_table_service(cls, auth: AuthSchema, gen_table_list: list[GenTableOutSchema]) -> bool:
+    async def import_gen_table(self, gen_table_list: list[GenTableOutSchema]) -> bool:
         """导入表结构到生成器。
 
         参数:
@@ -371,17 +362,17 @@ class GenTableService:
         try:
             for table in gen_table_list:
                 _row = {k: v for k, v in table.model_dump().items() if k in GenTableSchema.model_fields}
-                cls.normalize_and_validate_master_sub(GenTableSchema.model_validate(_row))
+                self.normalize_and_validate_master_sub(GenTableSchema.model_validate(_row))
                 table_name = table.table_name
                 # 检查表是否已存在
-                existing_table = await GenTableCRUD(auth).get_gen_table_by_name(table_name)
+                existing_table = await GenTableCRUD(auth=self.auth).get_gen_table_by_name(table_name)
                 if existing_table:
                     raise CustomException(msg=f"以下表已存在，不能重复导入: {table_name}")
                 GenUtils.init_table(table)
                 if not table.columns:
                     table.columns = []
-                add_gen_table = await GenTableCRUD(auth).add_gen_table(GenTableSchema.model_validate(table.model_dump()))
-                gen_table_columns = await GenTableColumnCRUD(auth).get_gen_db_table_columns_by_name(table_name)
+                add_gen_table = await GenTableCRUD(auth=self.auth).add_gen_table(GenTableSchema.model_validate(table.model_dump()))
+                gen_table_columns = await GenTableColumnCRUD(auth=self.auth).get_gen_db_table_columns_by_name(table_name)
                 if len(gen_table_columns) > 0:
                     table.id = add_gen_table.id
                     for column in gen_table_columns:
@@ -401,14 +392,13 @@ class GenTableService:
                             python_field=column.python_field,
                         )
                         GenUtils.init_column_field(column_schema, table)
-                        await GenTableColumnCRUD(auth).create_gen_table_column_crud(column_schema)
+                        await GenTableColumnCRUD(auth=self.auth).create_gen_table_column_crud(column_schema)
             return True
         except Exception as e:
             raise CustomException(msg=f"导入失败, {e!s}")
 
-    @classmethod
     @handle_service_exception
-    async def create_table_service(cls, auth: AuthSchema, sql: str) -> bool | None:
+    async def create_table(self, sql: str) -> bool | None:
         """创建表结构并导入至代码生成模块。
 
         参数:
@@ -448,7 +438,7 @@ class GenTableService:
             table_names = list(set(table_names))
 
             # 创建CRUD实例
-            gen_table_crud = GenTableCRUD(auth=auth)
+            gen_table_crud = GenTableCRUD(auth=self.auth)
 
             # 检查每个表是否已存在
             for table_name in table_names:
@@ -480,18 +470,17 @@ class GenTableService:
 
             # 建表成功后自动导入到代码生成模块
             if table_names:
-                gen_table_list = await cls.get_gen_db_table_list_by_name_service(auth, table_names)
+                gen_table_list = await self.get_gen_db_table_list_by_name(table_names)
                 if gen_table_list:
-                    await cls.import_gen_table_service(auth, gen_table_list)
+                    await self.import_gen_table(gen_table_list)
 
             return True
 
         except Exception as e:
             raise CustomException(msg=f"创建表结构失败: {e!s}")
 
-    @classmethod
     @handle_service_exception
-    async def update_gen_table_service(cls, auth: AuthSchema, data: GenTableSchema, table_id: int) -> GenTableOutSchema:
+    async def update_gen_table(self, data: GenTableSchema, table_id: int) -> GenTableOutSchema:
         """编辑业务表信息。
 
         参数:
@@ -503,18 +492,18 @@ class GenTableService:
         - dict[str, Any]: 更新后的业务表信息。
         """
         # 处理params为None的情况
-        gen_table_info = await cls.get_gen_table_by_id_service(auth, table_id)
+        gen_table_info = await self.get_gen_table_by_id(table_id)
         if gen_table_info.id:
             try:
-                cls.normalize_and_validate_master_sub(data)
-                await cls._assert_parent_menu_is_catalog(auth, data.parent_menu_id)
+                self.normalize_and_validate_master_sub(data)
+                await self._assert_parent_menu_is_catalog(data.parent_menu_id)
                 # 直接调用edit_gen_table方法，它会在内部处理排除嵌套字段的逻辑
-                result = await GenTableCRUD(auth).edit_gen_table(table_id, data)
+                result = await GenTableCRUD(auth=self.auth).edit_gen_table(table_id, data)
                 if not result:
                     raise CustomException(msg="更新业务表信息失败")
 
                 if data.columns is not None:
-                    db_columns = await GenTableColumnCRUD(auth).list_gen_table_column_crud(search={"table_id": table_id})
+                    db_columns = await GenTableColumnCRUD(auth=self.auth).list_gen_table_column_crud(search={"table_id": table_id})
                     db_column_map = {c.column_name: c for c in db_columns if c.column_name}
                     submitted_names = {c.column_name for c in data.columns if hasattr(c, "column_name") and c.column_name}
 
@@ -525,7 +514,7 @@ class GenTableService:
                             # 只更新前端实际修改的字段（利用 Pydantic model_fields_set）
                             update_data = gen_table_column.model_dump(exclude_unset=True, exclude={"id", "super_column"})
                             if update_data:
-                                await GenTableColumnCRUD(auth).update(id=col_id, data=update_data)
+                                await GenTableColumnCRUD(auth=self.auth).update(id=col_id, data=update_data)
                         else:
                             # 新增列：前端新增但库中无对应记录
                             column_schema = GenTableColumnSchema(
@@ -533,19 +522,19 @@ class GenTableService:
                                 **gen_table_column.model_dump(exclude={"id", "super_column"}),
                             )
                             GenUtils.init_column_field(column_schema, gen_table_info)
-                            await GenTableColumnCRUD(auth).create_gen_table_column_crud(column_schema)
+                            await GenTableColumnCRUD(auth=self.auth).create_gen_table_column_crud(column_schema)
 
                     # 删除前端已移除的列
                     for db_name, db_col in db_column_map.items():
                         if db_name not in submitted_names:
                             db_id = getattr(db_col, "id", None)
                             if db_id:
-                                await GenTableColumnCRUD(auth).delete(ids=[db_id])
+                                await GenTableColumnCRUD(auth=self.auth).delete(ids=[db_id])
                 # 重新获取带有预加载关系的对象，避免懒加载导致的MissingGreenlet错误
-                updated_gen_table = await GenTableCRUD(auth).get_gen_table_by_id(table_id)
+                updated_gen_table = await GenTableCRUD(auth=self.auth).get_gen_table_by_id(table_id)
                 out = GenTableOutSchema.model_validate(updated_gen_table)
-                await cls.set_pk_column(out)
-                await cls.hydrate_sub_table(auth, out)
+                await self.set_pk_column(out)
+                await self.hydrate_sub_table(out)
                 return out
             except CustomException:
                 raise
@@ -554,9 +543,8 @@ class GenTableService:
         else:
             raise CustomException(msg="业务表不存在")
 
-    @classmethod
     @handle_service_exception
-    async def delete_gen_table_service(cls, auth: AuthSchema, ids: list[int]) -> None:
+    async def delete_gen_table(self, ids: list[int]) -> None:
         """删除业务表信息（先删字段，再删表）。
 
         参数:
@@ -572,15 +560,14 @@ class GenTableService:
 
         try:
             # 先删除相关的字段信息
-            await GenTableColumnCRUD(auth=auth).delete_gen_table_column_by_table_id_crud(ids)
+            await GenTableColumnCRUD(auth=self.auth).delete_gen_table_column_by_table_id_crud(ids)
             # 再删除表信息
-            await GenTableCRUD(auth=auth).delete_gen_table(ids)
+            await GenTableCRUD(auth=self.auth).delete_gen_table(ids)
         except Exception as e:
             raise CustomException(msg=str(e))
 
-    @classmethod
     @handle_service_exception
-    async def get_gen_table_by_id_service(cls, auth: AuthSchema, table_id: int) -> GenTableOutSchema:
+    async def get_gen_table_by_id(self, table_id: int) -> GenTableOutSchema:
         """获取需要生成代码的业务表详细信息。
 
         参数:
@@ -590,18 +577,17 @@ class GenTableService:
         返回:
         - GenTableOutSchema: 业务表详细信息模型。
         """
-        gen_table = await GenTableCRUD(auth=auth).get_gen_table_by_id(table_id)
+        gen_table = await GenTableCRUD(auth=self.auth).get_gen_table_by_id(table_id)
         if not gen_table:
             raise CustomException(msg="业务表不存在")
 
         result = GenTableOutSchema.model_validate(gen_table)
-        await cls.set_pk_column(result)
-        await cls.hydrate_sub_table(auth, result)
+        await self.set_pk_column(result)
+        await self.hydrate_sub_table(result)
         return result
 
-    @classmethod
     @handle_service_exception
-    async def get_gen_table_all_service(cls, auth: AuthSchema) -> list[GenTableOutSchema]:
+    async def get_gen_table_all(self) -> list[GenTableOutSchema]:
         """获取所有业务表信息（列表）。
 
         参数:
@@ -610,7 +596,7 @@ class GenTableService:
         返回:
         - list[GenTableOutSchema]: 业务表详细信息模型列表。
         """
-        gen_table_all = await GenTableCRUD(auth=auth).get_gen_table_all() or []
+        gen_table_all = await GenTableCRUD(auth=self.auth).get_gen_table_all() or []
         result = []
         for gen_table in gen_table_all:
             try:
@@ -621,9 +607,8 @@ class GenTableService:
                 continue
         return result
 
-    @classmethod
     @handle_service_exception
-    async def preview_code_service(cls, auth: AuthSchema, table_id: int) -> dict[str, Any]:
+    async def preview_code(self, table_id: int) -> dict[str, Any]:
         """
         预览代码（根据模板渲染内存结果）。
 
@@ -634,17 +619,17 @@ class GenTableService:
         返回:
         - dict[str, Any]: 文件名到渲染内容的映射。
         """
-        raw = await GenTableCRUD(auth).get_gen_table_by_id(table_id)
+        raw = await GenTableCRUD(auth=self.auth).get_gen_table_by_id(table_id)
         if not raw:
             raise CustomException(msg="业务表不存在")
         gen_table = GenTableOutSchema.model_validate(raw)
-        await cls.set_pk_column(gen_table)
-        await cls.hydrate_sub_table(auth, gen_table)
-        cls._assert_master_sub_config_valid(gen_table)
+        await self.set_pk_column(gen_table)
+        await self.hydrate_sub_table(gen_table)
+        self._assert_master_sub_config_valid(gen_table)
         # 预览回显的路径/包名规则必须与「写入本地」一致：
         # - 选择上级目录：继承上级目录所属 module_xxx
         # - 未选上级目录：使用表单包名（并补齐 module_ 前缀）
-        gen_table.package_name = await cls._effective_package_name(auth, gen_table.parent_menu_id, gen_table.package_name)
+        gen_table.package_name = await self._effective_package_name(gen_table.parent_menu_id, gen_table.package_name)
         # 子表与主表同分系统/同模块
         if gen_table.sub and gen_table.sub_table:
             gen_table.sub_table.package_name = gen_table.package_name
@@ -678,9 +663,8 @@ class GenTableService:
                     preview_code_result[out_key] = f"渲染错误: {e!s}"
         return preview_code_result
 
-    @classmethod
     @handle_service_exception
-    async def generate_code_service(cls, auth: AuthSchema, table_name: str) -> bool:
+    async def generate_code(self, table_name: str) -> bool:
         """生成代码至指定路径（安全写入+可跳过覆盖）。
 
         菜单固定为 **目录(type=1) + 菜单(type=2) + 按钮(type=3)**：
@@ -703,7 +687,7 @@ class GenTableService:
         if not table_name or not table_name.strip():
             raise CustomException(msg="表名不能为空")
         env = Jinja2TemplateUtil.get_env()
-        render_info = await cls.__get_gen_render_info(auth, table_name)
+        render_info = await self.__get_gen_render_info(table_name)
         gen_table_schema: GenTableOutSchema = render_info[3]
 
         from app.api.v1.module_platform.menu.crud import MenuCRUD
@@ -711,7 +695,7 @@ class GenTableService:
         from app.utils.common_util import CamelCaseUtil
 
         # 按“上级目录”规则矫正最终包名（分系统根）
-        gen_table_schema.package_name = await cls._effective_package_name(auth, gen_table_schema.parent_menu_id, gen_table_schema.package_name)
+        gen_table_schema.package_name = await self._effective_package_name(gen_table_schema.parent_menu_id, gen_table_schema.package_name)
         # 统一权限前缀（对齐 module_example/demo）：
         # - module_xxx:module_name（操作在按钮/模板中追加 :query/:create...）
         pn = (gen_table_schema.package_name or "").strip()
@@ -758,10 +742,10 @@ class GenTableService:
             await _write_templates(sub_templates, sub_ctx, gen_table_schema.sub_table)
 
         # 2. 代码成功写入后，再创建菜单（避免失败时产生孤儿菜单数据）
-        menu_crud = MenuCRUD(auth)
-        await cls._assert_parent_menu_is_catalog(auth, gen_table_schema.parent_menu_id)
+        menu_crud = MenuCRUD(self.auth)
+        await self._assert_parent_menu_is_catalog(gen_table_schema.parent_menu_id)
         # 1. 目录 + 菜单 + 按钮：先取/建模块目录（名称规则见 _catalog_menu_dir_key）
-        dir_menu_id = await cls._get_or_create_package_directory_menu(
+        dir_menu_id = await self._get_or_create_package_directory_menu(
             menu_crud,
             gen_table_schema.parent_menu_id,
             gen_table_schema.package_name,
@@ -777,7 +761,7 @@ class GenTableService:
         )
         if existing_func_menu:
             raise CustomException(msg=f"该模块目录下功能菜单「{gen_table_schema.function_name}」已存在，不能重复创建")
-        route_seg = cls._menu_route_first_segment(
+        route_seg = self._menu_route_first_segment(
             gen_table_schema.parent_menu_id,
             gen_table_schema.package_name or "",
             gen_table_schema.module_name,
@@ -897,9 +881,8 @@ class GenTableService:
 
         return True
 
-    @classmethod
     @handle_service_exception
-    async def batch_gen_code_service(cls, auth: AuthSchema, table_names: list[str]) -> tuple[bytes, list[str]]:
+    async def batch_gen_code(self, table_names: list[str]) -> tuple[bytes, list[str]]:
         """
         批量生成代码并打包为ZIP。
         - 备注：内存生成并压缩，兼容多模板类型；供下载使用。
@@ -921,7 +904,7 @@ class GenTableService:
             for table_name in valid_names:
                 try:
                     env = Jinja2TemplateUtil.get_env()
-                    render_info = await cls.__get_gen_render_info(auth, table_name)
+                    render_info = await self.__get_gen_render_info(table_name)
                     gen_tbl = render_info[3]
                     for template_file, output_file in zip(render_info[0], render_info[1], strict=False):
                         render_content = await env.get_template(template_file).render_async(**render_info[2])
@@ -947,9 +930,8 @@ class GenTableService:
             raise CustomException(msg="未能生成任何代码文件：请检查所选表是否存在于代码生成配置中，或主子表、字段配置是否正确")
         return zip_data, failed_tables
 
-    @classmethod
     @handle_service_exception
-    async def sync_db_service(cls, auth: AuthSchema, table_name: str, _sync_sub: bool = True) -> None:
+    async def sync_db(self, table_name: str, _sync_sub: bool = True) -> None:
         """
         同步数据库表结构到业务表。
 
@@ -963,7 +945,7 @@ class GenTableService:
         # 验证表名非空
         if not table_name or not table_name.strip():
             raise CustomException(msg="表名不能为空")
-        gen_table = await GenTableCRUD(auth).get_gen_table_by_name(table_name)
+        gen_table = await GenTableCRUD(auth=self.auth).get_gen_table_by_name(table_name)
         if not gen_table:
             raise CustomException(msg="业务表不存在")
         table = GenTableOutSchema.model_validate(gen_table)
@@ -972,7 +954,7 @@ class GenTableService:
         table_columns = table.columns or []
         table_column_map = {column.column_name: column for column in table_columns}
         # 确保db_table_columns始终是列表类型，避免None值
-        db_table_columns = await GenTableColumnCRUD(auth).get_gen_db_table_columns_by_name(table_name) or []
+        db_table_columns = await GenTableColumnCRUD(auth=self.auth).get_gen_db_table_columns_by_name(table_name) or []
         db_table_columns = [col for col in db_table_columns if col is not None]
         db_table_column_names = [column.column_name for column in db_table_columns]
         try:
@@ -1017,33 +999,32 @@ class GenTableService:
                     # 转换为 GenTableColumnSchema，排除 super_column 等输出专用字段
                     column_data = GenTableColumnSchema(**column.model_dump(exclude={"super_column"}))
                     if hasattr(column, "id") and column.id:
-                        await GenTableColumnCRUD(auth).update_gen_table_column_crud(column.id, column_data)
+                        await GenTableColumnCRUD(auth=self.auth).update_gen_table_column_crud(column.id, column_data)
                     else:
-                        await GenTableColumnCRUD(auth).create_gen_table_column_crud(column_data)
+                        await GenTableColumnCRUD(auth=self.auth).create_gen_table_column_crud(column_data)
                 else:
                     # 设置table_id以确保新字段能正确关联到表
                     column.table_id = table.id
                     # 转换为 GenTableColumnSchema，排除 super_column 等输出专用字段
                     column_data = GenTableColumnSchema(**column.model_dump(exclude={"super_column"}))
-                    await GenTableColumnCRUD(auth).create_gen_table_column_crud(column_data)
+                    await GenTableColumnCRUD(auth=self.auth).create_gen_table_column_crud(column_data)
             del_columns = [column for column in table_columns if column.column_name not in db_table_column_names]
             if del_columns:
                 for column in del_columns:
                     if hasattr(column, "id") and column.id:
-                        await GenTableColumnCRUD(auth).delete_gen_table_column_by_column_id_crud([column.id])
+                        await GenTableColumnCRUD(auth=self.auth).delete_gen_table_column_by_column_id_crud([column.id])
 
             # 主子表：若子表也已导入生成器，则一并同步子表配置
             sn = (table.sub_table_name or "").strip()
             fk = (table.sub_table_fk_name or "").strip()
             if _sync_sub and sn and fk:
-                sub_cfg = await GenTableCRUD(auth).get_gen_table_by_name(sn)
+                sub_cfg = await GenTableCRUD(auth=self.auth).get_gen_table_by_name(sn)
                 if sub_cfg:
-                    await cls.sync_db_service(auth, sn, _sync_sub=False)
+                    await self.sync_db(sn, _sync_sub=False)
         except Exception as e:
             raise CustomException(msg=f"同步失败: {e!s}")
 
-    @classmethod
-    async def hydrate_sub_table(cls, auth: AuthSchema, gen_table: GenTableOutSchema) -> None:
+    async def hydrate_sub_table(self, gen_table: GenTableOutSchema) -> None:
         """
         主子表：优先使用已导入的子表配置，否则回退为只读 DB 结构。
 
@@ -1081,12 +1062,12 @@ class GenTableService:
 
         # 1) 若子表已作为 gen_table 导入，则使用其 columns 配置（可控、可复用）
         try:
-            sub_cfg_model = await GenTableCRUD(auth).get_gen_table_by_name(sub_name_raw, preload=["columns"])
+            sub_cfg_model = await GenTableCRUD(auth=self.auth).get_gen_table_by_name(sub_name_raw, preload=["columns"])
         except Exception:
             sub_cfg_model = None
         if sub_cfg_model:
             sub_cfg = GenTableOutSchema.model_validate(sub_cfg_model)
-            await cls.set_pk_column(sub_cfg)
+            await self.set_pk_column(sub_cfg)
             # 校验外键列存在于子表配置中
             fk_names = {c.column_name for c in (sub_cfg.columns or []) if c.column_name}
             if fk_raw not in fk_names:
@@ -1101,7 +1082,7 @@ class GenTableService:
 
         # 2) 回退：仅从 DB 读取结构（只读，无法配置子表字段）
         try:
-            gen_table_columns = await GenTableColumnCRUD(auth).get_gen_db_table_columns_by_name(sub_name_raw)
+            gen_table_columns = await GenTableColumnCRUD(auth=self.auth).get_gen_db_table_columns_by_name(sub_name_raw)
         except Exception as e:
             logger.warning(f"获取子表 {sub_name_raw} 字段失败: {e!s}")
             gen_table.sub = False
@@ -1119,7 +1100,7 @@ class GenTableService:
             gen_table.sub_table = None
             gen_table.master_sub_hint = f"子表「{sub_name_raw}」中不存在名为「{fk_raw}」的列，请核对外键列名"
             return
-        table_comment = await GenTableCRUD(auth).get_db_table_comment(sub_name_raw)
+        table_comment = await GenTableCRUD(auth=self.auth).get_db_table_comment(sub_name_raw)
         sub = GenTableOutSchema.model_validate(
             {
                 "id": -1,
@@ -1146,14 +1127,14 @@ class GenTableService:
             if sub.columns is None:
                 sub.columns = []
             sub.columns.append(GenTableColumnOutSchema(**col_schema.model_dump()))
-        await cls.set_pk_column(sub)
+        await self.set_pk_column(sub)
         gen_table.sub = True
         gen_table.sub_table = sub
         gen_table.master_sub_hint = f"主子表已启用：当前子表仅从数据库结构读取（只读）。若想可配置子表字段，请先在「导入」中把子表「{sub_name_raw}」也导入生成器。"
 
-    @classmethod
+    @staticmethod
     def _sync_preview_diff(
-        cls,
+        self,
         current_cols: list[GenTableColumnOutSchema],
         db_cols: list[GenTableColumnOutSchema],
     ) -> tuple[list[str], list[str], list[GenSyncColumnChange], int]:
@@ -1201,9 +1182,8 @@ class GenTableService:
 
         return added, removed, changed, unchanged
 
-    @classmethod
     @handle_service_exception
-    async def sync_db_preview_service(cls, auth: AuthSchema, table_name: str) -> GenSyncPreviewSchema:
+    async def sync_db_preview(self, table_name: str) -> GenSyncPreviewSchema:
         """
         同步数据库前差异预览（主表 + 可选子表）。
 
@@ -1219,7 +1199,7 @@ class GenTableService:
         """
         if not table_name or not table_name.strip():
             raise CustomException(msg="表名不能为空")
-        gen_table = await GenTableCRUD(auth).get_gen_table_by_name(table_name, preload=["columns"])
+        gen_table = await GenTableCRUD(auth=self.auth).get_gen_table_by_name(table_name, preload=["columns"])
         if not gen_table:
             raise CustomException(msg="业务表不存在")
 
@@ -1227,8 +1207,8 @@ class GenTableService:
         if not table.id:
             raise CustomException(msg="业务表ID不能为空")
 
-        db_cols = await GenTableColumnCRUD(auth).get_gen_db_table_columns_by_name(table_name)
-        added, removed, changed, unchanged = cls._sync_preview_diff(
+        db_cols = await GenTableColumnCRUD(auth=self.auth).get_gen_db_table_columns_by_name(table_name)
+        added, removed, changed, unchanged = self._sync_preview_diff(
             current_cols=table.columns or [],
             db_cols=db_cols or [],
         )
@@ -1246,13 +1226,13 @@ class GenTableService:
         if sn and fk:
             preview.sub_table_name = sn
             # 优先取“已导入的子表配置”，否则用 DB 结构（只读）
-            sub_cfg = await GenTableCRUD(auth).get_gen_table_by_name(sn, preload=["columns"])
+            sub_cfg = await GenTableCRUD(auth=self.auth).get_gen_table_by_name(sn, preload=["columns"])
             if sub_cfg:
                 cur_sub_cols = GenTableOutSchema.model_validate(sub_cfg).columns or []
             else:
                 cur_sub_cols = []
-            db_sub_cols = await GenTableColumnCRUD(auth).get_gen_db_table_columns_by_name(sn)
-            s_added, s_removed, s_changed, s_unchanged = cls._sync_preview_diff(
+            db_sub_cols = await GenTableColumnCRUD(auth=self.auth).get_gen_db_table_columns_by_name(sn)
+            s_added, s_removed, s_changed, s_unchanged = self._sync_preview_diff(
                 current_cols=cur_sub_cols,
                 db_cols=db_sub_cols or [],
             )
@@ -1266,7 +1246,7 @@ class GenTableService:
 
         return preview
 
-    @classmethod
+    @staticmethod
     def _assert_master_sub_config_valid(cls, gen_table: GenTableOutSchema) -> None:
         """预览/生成前校验主子表配置是否可用。"""
         sn = (gen_table.sub_table_name or "").strip()
@@ -1278,7 +1258,7 @@ class GenTableService:
         if not gen_table.sub_table:
             raise CustomException(msg=gen_table.master_sub_hint or "无法生成主子表代码：请确认子表已在当前数据库中存在，且外键列名正确")
 
-    @classmethod
+    @staticmethod
     async def set_pk_column(cls, gen_table: GenTableOutSchema) -> None:
         """设置主键列信息（主表/子表）。
         - 备注：同时兼容`pk`布尔与`is_pk == '1'`字符串两种标识。
@@ -1299,8 +1279,7 @@ class GenTableService:
         if gen_table.pk_column is None and gen_table.columns:
             gen_table.pk_column = gen_table.columns[0]
 
-    @classmethod
-    async def __get_gen_render_info(cls, auth: AuthSchema, table_name: str) -> list[Any]:
+    async def __get_gen_render_info(self, table_name: str) -> list[Any]:
         """
         获取生成代码渲染模板相关信息。
 
@@ -1314,16 +1293,16 @@ class GenTableService:
         异常:
         - CustomException: 当业务表不存在或数据转换失败时抛出。
         """
-        gen_table_model = await GenTableCRUD(auth=auth).get_gen_table_by_name(table_name)
+        gen_table_model = await GenTableCRUD(auth=self.auth).get_gen_table_by_name(table_name)
         # 检查表是否存在
         if gen_table_model is None:
             raise CustomException(msg=f"业务表 {table_name} 不存在")
         gen_table = GenTableOutSchema.model_validate(gen_table_model)
         # 生成代码时按“上级目录”规则矫正最终包名（不落库，仅影响本次生成/预览/下载/写入）
-        gen_table.package_name = await cls._effective_package_name(auth, gen_table.parent_menu_id, gen_table.package_name)
-        await cls.set_pk_column(gen_table)
-        await cls.hydrate_sub_table(auth, gen_table)
-        cls._assert_master_sub_config_valid(gen_table)
+        gen_table.package_name = await self._effective_package_name(gen_table.parent_menu_id, gen_table.package_name)
+        await self.set_pk_column(gen_table)
+        await self.hydrate_sub_table(gen_table)
+        self._assert_master_sub_config_valid(gen_table)
         context = Jinja2TemplateUtil.prepare_context(gen_table)
         template_list = Jinja2TemplateUtil.get_template_list()
         output_files = [Jinja2TemplateUtil.get_file_name(template, gen_table) for template in template_list]
@@ -1333,9 +1312,8 @@ class GenTableService:
 class GenTableColumnService:
     """代码生成业务表字段服务层"""
 
-    @classmethod
     @handle_service_exception
-    async def get_gen_table_column_list_by_table_id_service(cls, auth: AuthSchema, table_id: int) -> list[dict[str, Any]]:
+    async def get_gen_table_column_list_by_table_id(self, table_id: int) -> list[dict[str, Any]]:
         """获取业务表字段列表信息（输出模型）。
 
         参数:
@@ -1345,6 +1323,6 @@ class GenTableColumnService:
         返回:
         - list[dict[str, Any]]: 业务表字段列表，每个元素为字段详细信息字典。
         """
-        gen_table_column_list_result = await GenTableColumnCRUD(auth).list_gen_table_column_crud({"table_id": table_id})
+        gen_table_column_list_result = await GenTableColumnCRUD(auth=self.auth).list_gen_table_column_crud({"table_id": table_id})
         result = [GenTableColumnOutSchema.model_validate(gen_table_column) for gen_table_column in gen_table_column_list_result]
         return result

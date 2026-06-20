@@ -21,7 +21,7 @@ from .schema import (
 )
 from .service import LoginLogService, OperationLogService
 
-LogRouter = APIRouter(route_class=OperationLogRoute, prefix="/log", tags=["日志管理"])
+LogRouter = APIRouter(route_class=OperationLogRoute, prefix="/log", tags=["系统管理", "日志管理"])
 
 
 @LogRouter.get(
@@ -33,17 +33,7 @@ async def get_log_detail_controller(
     id: Annotated[int, Path(description="登录日志ID")],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_system:login_log:query"]))],
 ) -> JSONResponse:
-    """
-    获取登录日志详情
-
-    参数:
-    - id (int): 登录日志 ID。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含登录日志详情的 JSON 响应。
-    """
-    result_dict = await LoginLogService.detail_service(id=id, auth=auth)
+    result_dict = await LoginLogService(auth).detail(id=id)
     return SuccessResponse(data=result_dict, msg="获取登录日志详情成功")
 
 
@@ -57,19 +47,7 @@ async def get_log_list_controller(
     search: Annotated[LoginLogQueryParam, Depends()],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_system:login_log:query"]))],
 ) -> JSONResponse:
-    """
-    查询登录日志列表
-
-    参数:
-    - page (PaginationQueryParam): 分页查询参数。
-    - search (LoginLogQueryParam): 查询筛选参数。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含分页登录日志列表的 JSON 响应。
-    """
-    result_dict = await LoginLogService.page_service(
-        auth=auth,
+    result_dict = await LoginLogService(auth).page(
         page_no=page.page_no,
         page_size=page.page_size,
         search=search,
@@ -87,17 +65,7 @@ async def create_log_controller(
     data: LoginLogCreateSchema,
     auth: Annotated[AuthSchema, Depends(get_current_user)],
 ) -> JSONResponse:
-    """
-    创建登录日志
-
-    参数:
-    - data (LoginLogCreateSchema): 登录日志创建参数。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含创建后的登录日志详情的 JSON 响应。
-    """
-    result_dict = await LoginLogService.create_service(auth=auth, data=data)
+    result_dict = await LoginLogService(auth).create(data=data)
     return SuccessResponse(data=result_dict, msg="创建登录日志成功")
 
 
@@ -110,17 +78,7 @@ async def delete_log_controller(
     ids: Annotated[list[int], Body(description="ID列表")],
     auth: Annotated[AuthSchema, Depends(AuthPermission(["module_system:login_log:delete"]))],
 ) -> JSONResponse:
-    """
-    删除登录日志
-
-    参数:
-    - ids (list[int]): 日志 ID 列表。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 删除结果。
-    """
-    await LoginLogService.delete_service(auth=auth, ids=ids)
+    await LoginLogService(auth).delete(ids=ids)
     return SuccessResponse(msg="删除登录日志成功")
 
 
@@ -135,17 +93,7 @@ async def get_operation_log_detail_controller(
     id: Annotated[int, Path(gt=0)],
     auth: Annotated[AuthSchema, Depends(get_current_user)],
 ):
-    """
-    获取操作日志详情
-
-    参数:
-    - id (int): 操作日志 ID。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含操作日志详情的 JSON 响应。
-    """
-    result_dict = await OperationLogService.detail_service(auth=auth, id=id)
+    result_dict = await OperationLogService(auth).detail(id=id)
     return SuccessResponse(data=result_dict, msg="获取操作日志详情成功")
 
 
@@ -161,23 +109,11 @@ async def list(
     search: Annotated[OperationLogQueryParam, Depends()],
     auth: Annotated[AuthSchema, Depends(get_current_user)],
 ):
-    """
-    获取操作日志列表
-
-    参数:
-    - page (PaginationQueryParam): 分页查询参数。
-    - search (OperationLogQueryParam): 查询筛选参数。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含分页操作日志列表的 JSON 响应。
-    """
-    result_dict = await OperationLogService.page_service(
-        auth,
-        page.page_no,
-        page.page_size,
-        search.model_dump(exclude_none=True),
-        page.order_by,
+    result_dict = await OperationLogService(auth).page(
+        page_no=page.page_no,
+        page_size=page.page_size,
+        search=search,
+        order_by=page.order_by,
     )
     return SuccessResponse(data=result_dict, msg="查询操作日志列表成功")
 
@@ -192,17 +128,7 @@ async def create_operation_log_controller(
     data: OperationLogCreateSchema,
     auth: Annotated[AuthSchema, Depends(get_current_user)],
 ):
-    """
-    创建操作日志
-
-    参数:
-    - data (OperationLogCreateSchema): 操作日志创建参数。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 包含创建后的操作日志详情的 JSON 响应。
-    """
-    result_dict = await OperationLogService.create_service(auth=auth, data=data)
+    result_dict = await OperationLogService(auth).create(data=data)
     return SuccessResponse(data=result_dict, msg="创建操作日志成功")
 
 
@@ -217,15 +143,5 @@ async def delete(
     data: BatchDelete,
     auth: Annotated[AuthSchema, Depends(get_current_user)],
 ):
-    """
-    删除操作日志
-
-    参数:
-    - data (BatchDelete): 批量删除参数（ID 列表）。
-    - auth (AuthSchema): 认证信息模型。
-
-    返回:
-    - JSONResponse: 删除结果。
-    """
-    await OperationLogService.delete_service(auth=auth, ids=data.ids)
+    await OperationLogService(auth).delete(ids=data.ids)
     return SuccessResponse(msg="删除操作日志成功")

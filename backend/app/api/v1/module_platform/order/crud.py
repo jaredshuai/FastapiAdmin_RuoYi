@@ -1,6 +1,5 @@
 """订单与支付 CRUD"""
 
-from datetime import datetime
 from typing import Any
 
 from app.core.base_crud import CRUDBase
@@ -51,20 +50,6 @@ class OrderCRUD(CRUDBase[OrderModel, OrderCreateInternalSchema, OrderUpdateInter
             .where(OrderModel.is_deleted == False)  # noqa: E712
             .values(status=3)
         )
-
-    @staticmethod
-    async def cancel_expired_orders() -> None:
-        """定时任务：取消超时未支付订单"""
-        from sqlalchemy import update as sa_update
-
-        from app.core.database import async_db_session
-        from app.core.logger import logger
-
-        now = datetime.now()
-        async with async_db_session() as session:
-            async with session.begin():
-                result = await session.execute(sa_update(OrderModel).where(OrderModel.status == 0).where(OrderModel.expire_time < now).where(OrderModel.is_deleted.is_(False)).values(status=2))
-            logger.info(f"超时订单取消: 已取消 {result.rowcount} 条订单")
 
 
 class PaymentRecordCRUD(CRUDBase[PaymentRecordModel, PaymentRecordCreateSchema, Any]):
