@@ -4,10 +4,10 @@ import uuid
 from datetime import datetime, timedelta
 from typing import NewType
 
+import ua_parser
 from fastapi import Request
 from redis.asyncio.client import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
-from user_agents import parse
 
 from app.api.v1.module_monitor.online.schema import OnlineOutSchema
 from app.api.v1.module_system.user.crud import UserCRUD
@@ -103,11 +103,11 @@ class LoginService:
         db: AsyncSession,
     ) -> LoginWithTenantsSchema:
         """用户认证"""
-        user_agent = parse(request.headers.get("user-agent"))
+        ua_result = ua_parser.parse(request.headers.get("user-agent"))
         request_ip = _resolve_request_ip(request)
         login_location = await IpLocalUtil.resolve_location_for_log(request_ip)
-        _login_os = user_agent.os.family
-        _login_browser = user_agent.browser.family
+        _login_os = ua_result.os.family if ua_result.os else "Unknown"
+        _login_browser = ua_result.user_agent.family if ua_result.user_agent else "Unknown"
         _login_username = login_form.username
 
         referer = request.headers.get("referer", "")
@@ -226,7 +226,7 @@ class LoginService:
     async def create_token(cls, request: Request, redis: Redis, user: UserModel, login_type: str) -> JWTOutSchema:
         """创建访问令牌和刷新令牌"""
         session_id = str(uuid.uuid4())
-        user_agent = parse(request.headers.get("user-agent"))
+        ua_result = ua_parser.parse(request.headers.get("user-agent"))
         request_ip = _resolve_request_ip(request)
 
         login_location = await IpLocalUtil.resolve_location_for_log(request_ip)
@@ -257,8 +257,8 @@ class LoginService:
             user_name=user.username,
             ipaddr=request_ip,
             login_location=login_location,
-            os=user_agent.os.family,
-            browser=user_agent.browser.family,
+            os=ua_result.os.family if ua_result.os else "Unknown",
+            browser=ua_result.user_agent.family if ua_result.user_agent else "Unknown",
             login_time=user.last_login,
             login_type=login_type,
         ).model_dump_json()

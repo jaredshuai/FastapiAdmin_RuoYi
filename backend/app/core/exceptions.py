@@ -3,7 +3,6 @@ from typing import Any
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
-from pydantic_validation_decorator import FieldValidationError
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse
@@ -116,10 +115,6 @@ def handle_exception(app: FastAPI) -> None:
         logger.error("[值异常] %s %s | msg=%s", request.method, request.url.path, exc)
         return ErrorResponse(msg=str(exc), status_code=status.HTTP_400_BAD_REQUEST)
 
-    @app.exception_handler(FieldValidationError)
-    async def field_validation_exception_handler(request: Request, exc: FieldValidationError) -> JSONResponse:
-        logger.error("[字段验证异常] %s %s | msg=%s", request.method, request.url.path, exc.message)
-        return ErrorResponse(msg=exc.message, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
     @app.exception_handler(Exception)
     async def all_exception_handler(request: Request, exc: Exception) -> JSONResponse:

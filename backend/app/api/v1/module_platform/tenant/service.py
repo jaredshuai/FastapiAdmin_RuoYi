@@ -92,7 +92,7 @@ class TenantService:
         password = "".join(random.choice(characters) for _ in range(password_length))
         admin_data = {
             "username": username,
-            "password": PwdUtil.set_password_hash(password=password),
+            "password": PwdUtil.hash_password(password=password),
             "name": f"{tenant_obj.name}管理员",
             "tenant_id": tenant_obj.id,
             "status": 0,

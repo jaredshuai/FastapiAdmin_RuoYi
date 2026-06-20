@@ -87,7 +87,7 @@ class UserService:
         await TenantService(self.auth).check_quota(self.auth.tenant_id, "user")
 
         if data.password:
-            data.password = PwdUtil.set_password_hash(password=data.password)
+            data.password = PwdUtil.hash_password(password=data.password)
         user_dict = data.model_dump(exclude_unset=True, exclude={"role_ids", "position_ids"})
         new_user = await UserCRUD(self.auth).create(data=user_dict)
         if data.role_ids and len(data.role_ids) > 0:
@@ -238,7 +238,7 @@ class UserService:
         if not PwdUtil.verify_password(plain_password=data.old_password, password_hash=user.password):
             raise CustomException(msg="原密码输入错误")
 
-        new_password_hash = PwdUtil.set_password_hash(password=data.new_password)
+        new_password_hash = PwdUtil.hash_password(password=data.new_password)
         new_user = await UserCRUD(self.auth).change_password(id=user.id, password_hash=new_password_hash)
         return UserOutSchema.model_validate(new_user)
 
@@ -253,7 +253,7 @@ class UserService:
         if user.is_superuser:
             raise CustomException(msg="超级管理员密码不能重置")
 
-        new_password_hash = PwdUtil.set_password_hash(password=data.password)
+        new_password_hash = PwdUtil.hash_password(password=data.password)
         new_user = await UserCRUD(self.auth).change_password(id=data.id, password_hash=new_password_hash)
         return UserOutSchema.model_validate(new_user)
 
@@ -262,7 +262,7 @@ class UserService:
         if username_ok:
             raise CustomException(msg="该数据已存在")
 
-        data.password = PwdUtil.set_password_hash(password=data.password)
+        data.password = PwdUtil.hash_password(password=data.password)
         data.name = data.username
         create_dict = data.model_dump(exclude_unset=True, exclude={"role_ids", "position_ids"})
 
@@ -287,7 +287,7 @@ class UserService:
         if data.mobile and user.mobile != data.mobile:
             raise CustomException(msg="手机号不匹配")
 
-        new_password_hash = PwdUtil.set_password_hash(password=data.new_password)
+        new_password_hash = PwdUtil.hash_password(password=data.new_password)
         new_user = await UserCRUD(self.auth).forget_password(id=user.id, password_hash=new_password_hash)
         return UserOutSchema.model_validate(new_user)
 
@@ -348,7 +348,7 @@ class UserService:
                         "gender": str(row["gender"]).strip() if pd.notna(row["gender"]) else "1",
                         "status": 0 if str(row["status"]).strip() == "正常" else 1,
                         "dept_id": int(row["dept_id"]),
-                        "password": PwdUtil.set_password_hash(password="123456"),
+                        "password": PwdUtil.hash_password(password="123456"),
                     }
 
                     exists_user = await UserCRUD(self.auth).get(username=user_data["username"])

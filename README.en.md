@@ -19,7 +19,7 @@
           <a href="https://gitee.com/fastapiadmin/FastapiAdmin/blob/master/LICENSE" target="_blank">
                <img src="https://img.shields.io/badge/License-MIT-orange" alt="License">
           </a>
-          <img src="https://img.shields.io/badge/Python-≥3.10-blue">
+          <img src="https://img.shields.io/badge/Python-≥3.12-blue">
           <img src="https://img.shields.io/badge/NodeJS-≥20.0-blue">
           <img src="https://img.shields.io/badge/MySQL-≥8.0-blue">
           <img src="https://img.shields.io/badge/Redis-≥7.0-blue">
@@ -71,7 +71,7 @@ cd ../frontend/web && pnpm install && pnpm run dev
 
 | Requirements | |
 |-------------|------|
-| Python ≥ 3.10 (3.12 recommended) | Node.js ≥ 20 + pnpm |
+| Python ≥ 3.12 | Node.js ≥ 20 + pnpm |
 | MySQL 8.0+ / PostgreSQL 14+ | Redis 6.x / 7.x |
 
 ## 📦 Structure
