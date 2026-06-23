@@ -455,7 +455,11 @@ async function handleOpBatchDelete() {
 
 type LoginSearchForm = { username?: string; status?: number; created_time?: string[] };
 
-const loginSearchForm = ref<LoginSearchForm>({ username: undefined, status: undefined, created_time: undefined });
+const loginSearchForm = ref<LoginSearchForm>({
+  username: undefined,
+  status: undefined,
+  created_time: undefined,
+});
 const loginShowSearchBar = ref(true);
 const loginSearchBarRef = ref<InstanceType<typeof FaSearchBar> | null>(null);
 const loginSearchBarRules: Record<string, unknown> = {};

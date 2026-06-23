@@ -88,13 +88,15 @@
             <div class="mt-2.5 flex items-start">
               <FaSvgIcon icon="ri:calendar-line" class="text-g-700 shrink-0 mt-0.5" />
               <span class="ml-2 text-sm">
-                注册: {{ infoFormState.created_time ? formatDate(infoFormState.created_time) : "—" }}
+                注册:
+                {{ infoFormState.created_time ? formatDate(infoFormState.created_time) : "—" }}
               </span>
             </div>
             <div class="mt-2.5 flex items-start">
               <FaSvgIcon icon="ri:time-line" class="text-g-700 shrink-0 mt-0.5" />
               <span class="ml-2 text-sm">
-                更新: {{ infoFormState.updated_time ? formatDate(infoFormState.updated_time) : "—" }}
+                更新:
+                {{ infoFormState.updated_time ? formatDate(infoFormState.updated_time) : "—" }}
               </span>
             </div>
           </div>
@@ -135,11 +137,7 @@
         </div>
       </div>
 
-      <ElDialog
-        v-model="avatarCropVisible"
-        title="裁剪头像"
-        @closed="onAvatarCropDialogClosed"
-      >
+      <ElDialog v-model="avatarCropVisible" title="裁剪头像" @closed="onAvatarCropDialogClosed">
         <FaCutterImg
           v-if="avatarCropVisible && avatarCropSrc"
           :key="avatarCropSrc"
@@ -198,7 +196,6 @@
             </ElRow>
 
             <ElRow>
-
               <ElFormItem label="邮箱" prop="email">
                 <ElInput
                   v-model="infoFormState.email"
@@ -331,9 +328,14 @@ const roleTagList = computed(() =>
     .filter((n): n is string => !!n && n.trim().length > 0)
 );
 
-const hasThirdPartyBindings = computed(() =>
-  !!(infoFormState.github_login || infoFormState.gitee_login || 
-     infoFormState.wx_login || infoFormState.qq_login)
+const hasThirdPartyBindings = computed(
+  () =>
+    !!(
+      infoFormState.github_login ||
+      infoFormState.gitee_login ||
+      infoFormState.wx_login ||
+      infoFormState.qq_login
+    )
 );
 
 function formatDate(dateStr: string | undefined): string {

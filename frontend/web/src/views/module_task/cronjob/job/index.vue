@@ -413,9 +413,9 @@ const jobColumnChecks = ref<ColumnOption<SchedulerJob>[]>([]);
 function matchesJobStatusFilter(jobStatus: number | undefined, filter?: number): boolean {
   if (filter === undefined) return true;
   const map: Record<number, number[]> = {
-    0: [0],  // 运行中
-    1: [1],  // 暂停
-    2: [2],  // 停止
+    0: [0], // 运行中
+    1: [1], // 暂停
+    2: [2], // 停止
   };
   const allowed = map[filter];
   if (!allowed) return true;
