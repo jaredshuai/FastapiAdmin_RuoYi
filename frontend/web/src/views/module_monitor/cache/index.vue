@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col relative last:mb-0">
+  <div class="fa-full-height">
     <ElTabs>
       <!-- 监控信息 Tab -->
       <ElTabPane label="监控信息">
@@ -498,6 +498,7 @@ onUnmounted(() => {
   gap: 16px;
   height: 100%;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .chart-card {
@@ -525,6 +526,7 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .cache-mgmt-col {
