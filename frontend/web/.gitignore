@@ -6,7 +6,7 @@ dist-ssr
 .cursorrules
 .history
 
-# Auto-generated files
+# 由 `pnpm run gen:auto-imports` 生成，检查和构建会自动重建。
 src/types/import/auto-imports.d.ts
 src/types/import/components.d.ts
 .auto-import.json

@@ -1,0 +1,6 @@
+[submodule "references/ruoyi-vue-plus"]
+	path = references/ruoyi-vue-plus
+	url = https://gitee.com/dromara/RuoYi-Vue-Plus.git
+[submodule "references/plus-ui"]
+	path = references/plus-ui
+	url = https://gitee.com/JavaLionLi/plus-ui.git

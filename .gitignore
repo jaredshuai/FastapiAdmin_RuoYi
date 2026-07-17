@@ -7,11 +7,20 @@ __pycache__
 .vscode
 .idea
 .DS_Store
+.codegraph/
+.commandcode/
 *.log
 *.local
 
+# 本地环境文件只提交示例；Vite 公开构建配置例外。
 .env
+.env.*
 !.env.example
+!.env.*.example
+!frontend/web/.env
+!frontend/web/.env.example
+!frontend/web/.env.development
+!frontend/web/.env.production
 
 *.egg
 *.egg-info
@@ -40,7 +49,7 @@ cython_debug
 
 venv
 .venv
-ENV
+/ENV/
 env.bak
 venv.bak
 
@@ -68,7 +77,6 @@ frontend/src/types/auto-imports.d.ts
 frontend/src/types/components.d.ts
 frontend/.env.development
 frontend/.env.production
-frontend/web/.env
 
 frontend/docs/*
 !frontend/docs/.gitkeep
