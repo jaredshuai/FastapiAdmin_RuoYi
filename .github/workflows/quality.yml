@@ -33,7 +33,7 @@ jobs:
 
       - name: 断言 uv 版本
         shell: bash
-        run: test "$(uv --version)" = "uv 0.11.15"
+        run: test "$(uv --version | awk '{print $2}')" = "0.11.15"
 
       - name: 安装 uv 托管的 Python 3.12.13
         run: uv python install 3.12.13 --managed-python
