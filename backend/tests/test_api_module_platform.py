@@ -279,8 +279,10 @@ class TestOrder:
     def test_order_list(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(test_client, "GET", "/platform/order/list", auth=auth_headers)
 
-    def test_order_detail(self, test_client: TestClient, auth_headers: dict) -> None:
-        assert_route(test_client, "GET", "/platform/order/detail/1", auth=auth_headers)
+    def test_order_detail_not_found(self, test_client: TestClient, auth_headers: dict) -> None:
+        response = test_client.get("/platform/order/detail/999999", headers=auth_headers)
+        assert response.status_code == 404
+        assert response.json()["msg"] == "订单不存在"
 
     def test_order_create(self, test_client: TestClient, auth_headers: dict) -> None:
         assert_route(

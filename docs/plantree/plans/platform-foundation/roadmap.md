@@ -14,7 +14,7 @@
 
 ## In Progress
 
-- Phase 0 可重复基线：处理 3 项后端测试失败，取得 GitHub Actions 运行证据并关闭 G0-G1。
+- Phase 0 可重复基线：本地 G0-G1 命令已通过，等待 GitHub Actions 运行证据后关闭阶段。
 
 ## Next
 

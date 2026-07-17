@@ -43,19 +43,22 @@ jobs:
 
       - name: 断言 Python 版本
         shell: bash
-        run: test "$(uv run --project backend python -c 'import platform; print(platform.python_version())')" = "3.12.13"
+        run: test "$(uv run --project backend --managed-python python -c 'import platform; print(platform.python_version())')" = "3.12.13"
 
       - name: Ruff 只读检查
-        run: uv run --project backend ruff check --no-fix .
+        run: uv run --project backend --managed-python ruff check --no-fix .
 
       - name: 后端测试
         env:
           PYTHONUTF8: "1"
-        run: uv run --project backend pytest
+        run: uv run --project backend --managed-python pytest
 
       - name: 确认检查未修改受控文件
         if: always()
-        run: git diff --exit-code
+        shell: bash
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=all)"
 
   frontend:
     name: 前端冻结安装、只读检查、测试与构建
@@ -106,7 +109,10 @@ jobs:
 
       - name: 确认检查未修改受控文件
         if: always()
-        run: git diff --exit-code
+        shell: bash
+        run: |
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=all)"
 
   compose:
     name: Compose 配置解析
