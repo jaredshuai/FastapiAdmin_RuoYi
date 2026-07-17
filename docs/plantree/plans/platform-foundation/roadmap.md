@@ -11,14 +11,15 @@
 - 完成 Phase 0 首次提交：固定参考 submodule，闭合前端生成顺序，并落地忽略、环境示例和只读检查策略。
 - 固定 Python、uv、Node、pnpm、MySQL、Redis 和 Nginx 版本，解决 Windows 误选 LibreOffice Python 的问题。
 - 建立根目录 backend/frontend/compose 三任务质量工作流，并完成首轮本地基线记录。
+- 修复 readiness 状态契约、订单不存在测试和远端 uv 版本断言；GitHub Actions 三任务全绿，G0-G1 与 Phase 0 正式关闭。
 
 ## In Progress
 
-- Phase 0 可重复基线：本地 G0-G1 命令已通过，等待 GitHub Actions 运行证据后关闭阶段。
+- Phase 1 安全与生产硬化：先建立权限负向测试矩阵，修复权限通配符、超级管理员判定和管理员专属服务保护不一致。
 
-## Next
+## 阶段明细
 
-### Phase 0：可重复基线
+### Phase 0：可重复基线（Done）
 
 交付：
 

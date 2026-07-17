@@ -2,7 +2,7 @@
 
 状态：In Progress
 
-当前阶段：Phase 0 可重复基线
+当前阶段：Phase 1 安全与生产硬化
 
 ## 目标
 

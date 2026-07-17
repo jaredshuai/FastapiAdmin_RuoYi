@@ -1,6 +1,6 @@
 # 测试与发布门槛
 
-状态：目标门槛已定义；当前提交尚未通过这些门槛
+状态：目标门槛已定义；G0-G1 已通过，G2-G6 待后续阶段验证
 
 ## 测试分层原则
 
@@ -31,10 +31,10 @@ Phase 1 的权限修复可以继续用集成测试验证现有真实依赖链，
 ```powershell
 uv --version # 必须为 0.11.15
 uv python install 3.12.13
-uv sync --project backend --frozen
-uv run --project backend python --version # 必须为 3.12.13
-uv run --project backend ruff check --no-fix .
-uv run --project backend pytest
+uv sync --project backend --frozen --managed-python
+uv run --project backend --managed-python python --version # 必须为 3.12.13
+uv run --project backend --managed-python ruff check --no-fix .
+uv run --project backend --managed-python pytest
 
 cd frontend\web
 node --version # 必须为 v24.15.0
@@ -46,7 +46,7 @@ pnpm run test
 pnpm run build
 ```
 
-当前状态：本地命令已通过，G0 等待远端证据。2026-07-17 以固定工具链验证：后端冻结同步、Ruff 只读检查和 265 项 pytest 全部通过；前端冻结安装、`lint:check`、3 项 Vitest、类型检查和生产构建通过；Compose 示例配置解析通过。`pnpm run gen:auto-imports` 从 422 个源码文件确定性生成忽略产物，检查与构建不依赖此前运行 Vite。根目录 CI 已覆盖同一组命令并断言实际版本，但尚未获得 GitHub Actions 运行证据。详见[本地验证记录](verification-2026-07-17.md)。
+当前状态：G0 已通过。2026-07-17 以固定工具链验证：后端冻结同步、Ruff 只读检查和 265 项 pytest 全部通过；前端冻结安装、`lint:check`、3 项 Vitest、类型检查和生产构建通过；Compose 示例配置解析通过。`pnpm run gen:auto-imports` 从 422 个源码文件确定性生成忽略产物，检查与构建不依赖此前运行 Vite。GitHub Actions [运行 #29587268152](https://github.com/jaredshuai/FastapiAdmin_RuoYi/actions/runs/29587268152) 在提交 `af725e32` 上通过 backend、frontend、compose 三个 job。详见[验证记录](verification-2026-07-17.md)。
 
 ## G1：非破坏性静态检查
 
@@ -55,7 +55,7 @@ pnpm run build
 - 根目录 CI 同时覆盖后端与前端，不能放在子项目内导致平台不识别。
 - Phase 1 接入 `import-linter` 或等价工具并保存当前违规基线，CI 阻止新增反向依赖；G5 前必须清空相关基线并改为严格失败。
 
-当前状态：后端 `ruff check --no-fix`、前端 `lint:check`、检查后 `git diff --exit-code` 及未跟踪文件检查已进入根目录工作流；本地只读检查通过。需取得远端运行证据后与 G0 一起关闭。
+当前状态：G1 已通过。后端 `ruff check --no-fix`、前端 `lint:check`、检查后 `git diff --exit-code` 及未跟踪文件检查已进入根目录工作流；本地检查和 GitHub Actions [运行 #29587268152](https://github.com/jaredshuai/FastapiAdmin_RuoYi/actions/runs/29587268152) 均通过。
 
 ## G2：安全与权限矩阵
 

@@ -30,7 +30,7 @@
 
 | Plan | Status | Current Phase | Last Landed | Next Target |
 | --- | --- | --- | --- | --- |
-| [平台底座建设](plans/platform-foundation/README.md) | In Progress | Phase 0 可重复基线 | 本地 G0-G1 全绿（2026-07-17） | 取得远端 CI 证据并关闭 Phase 0 |
+| [平台底座建设](plans/platform-foundation/README.md) | In Progress | Phase 1 安全与生产硬化 | G0-G1 已由远端 CI 验收（2026-07-17） | 建立权限负向测试矩阵并修复判定不一致 |
 
 ## 阅读路径
 
