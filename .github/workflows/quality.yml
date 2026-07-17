@@ -1,0 +1,121 @@
+name: Phase 0 质量门禁
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase0-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: 后端冻结安装、静态检查与测试
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 安装 uv 0.11.15
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: 0.11.15
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: 断言 uv 版本
+        shell: bash
+        run: test "$(uv --version)" = "uv 0.11.15"
+
+      - name: 安装 uv 托管的 Python 3.12.13
+        run: uv python install 3.12.13 --managed-python
+
+      - name: 冻结同步后端依赖
+        run: uv sync --project backend --frozen --managed-python
+
+      - name: 断言 Python 版本
+        shell: bash
+        run: test "$(uv run --project backend python -c 'import platform; print(platform.python_version())')" = "3.12.13"
+
+      - name: Ruff 只读检查
+        run: uv run --project backend ruff check --no-fix .
+
+      - name: 后端测试
+        env:
+          PYTHONUTF8: "1"
+        run: uv run --project backend pytest
+
+      - name: 确认检查未修改受控文件
+        if: always()
+        run: git diff --exit-code
+
+  frontend:
+    name: 前端冻结安装、只读检查、测试与构建
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      HUSKY: "0"
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 安装 pnpm 9.15.3
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.3
+          run_install: false
+
+      - name: 安装 Node 24.15.0
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: frontend/web/pnpm-lock.yaml
+
+      - name: 断言 Node 与 pnpm 版本
+        shell: bash
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(pnpm --version)" = "9.15.3"
+
+      - name: 冻结安装前端依赖
+        working-directory: frontend/web
+        run: pnpm install --frozen-lockfile
+
+      - name: 前端只读检查
+        working-directory: frontend/web
+        run: pnpm run lint:check
+
+      - name: 前端测试
+        working-directory: frontend/web
+        run: pnpm run test
+
+      - name: 前端类型检查与构建
+        working-directory: frontend/web
+        run: pnpm run build
+
+      - name: 确认检查未修改受控文件
+        if: always()
+        run: git diff --exit-code
+
+  compose:
+    name: Compose 配置解析
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 解析 Compose 配置
+        run: docker compose --env-file docker/.env.example -f docker/docker-compose-example.yaml config --quiet

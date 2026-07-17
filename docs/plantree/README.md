@@ -30,7 +30,7 @@
 
 | Plan | Status | Current Phase | Last Landed | Next Target |
 | --- | --- | --- | --- | --- |
-| [平台底座建设](plans/platform-foundation/README.md) | In Progress | Phase 0 可重复基线 | Phase 0 首次提交（2026-07-17） | 建立根目录非破坏性 CI 并运行完整 G0-G1 基线 |
+| [平台底座建设](plans/platform-foundation/README.md) | In Progress | Phase 0 可重复基线 | 固定工具链、根 CI 与失败基线（2026-07-17） | 修复 3 项后端失败并取得远端 CI 证据 |
 
 ## 阅读路径
 

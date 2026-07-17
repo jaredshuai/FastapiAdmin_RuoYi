@@ -19,6 +19,7 @@
 - [runtime-flows.md](runtime-flows.md)：登录菜单、接口鉴权、数据访问和插件注册链路。
 - [storage-and-state.md](storage-and-state.md)：数据库、Redis、进程状态和配置边界。
 - [toolchain.md](toolchain.md)：本地、CI 和容器使用的固定版本契约。
+- [verification-2026-07-17.md](verification-2026-07-17.md)：Phase 0 本地命令、结果和失败基线。
 - [test-and-release-gates.md](test-and-release-gates.md)：从可运行到可发布的验证门槛。
 - [risk-hotspots.md](risk-hotspots.md)：当前优先处理的风险。
 

@@ -46,7 +46,7 @@ pnpm run test
 pnpm run build
 ```
 
-当前状态：部分通过，G0 尚未整体关闭。2026-07-17 在不含 `node_modules`、`dist`、`.auto-import.json`、`auto-imports.d.ts` 和 `components.d.ts` 的隔离前端副本中验证：设置 `HUSKY=0` 后，`pnpm install --frozen-lockfile`、`pnpm run lint:check` 和 `pnpm run build` 依次通过。新增 `pnpm run gen:auto-imports` 会扫描当前源码，复用真实 Vite 配置生成 ESLint globals、自动导入声明和组件声明，`type-check`、`lint:check`、`build` 均显式前置调用。另以明确的 `pnpm@9.15.3` 验证冻结安装通过，现有 overrides 与锁文件保持匹配；根目录 CI 必须先断言实际 pnpm 版本。仍需在根目录 CI 中重复该证据，并完成后端、测试和 Compose 基线，才能判定 G0 通过。
+当前状态：本地基线已完成，G0 尚未关闭。2026-07-17 以固定工具链验证：后端冻结同步和 Ruff 只读检查通过，但 pytest 为 262 通过、3 失败；前端冻结安装、`lint:check`、3 项 Vitest、类型检查和生产构建通过；Compose 示例配置解析通过。`pnpm run gen:auto-imports` 从 422 个源码文件确定性生成忽略产物，检查与构建不依赖此前运行 Vite。根目录 CI 已覆盖同一组命令并断言实际版本，但尚未获得 GitHub Actions 运行证据。详见[本地验证记录](verification-2026-07-17.md)。
 
 ## G1：非破坏性静态检查
 
@@ -54,6 +54,8 @@ pnpm run build
 - 前端把 `lint:check` 与 `lint:fix` 分开；CI 只运行 `pnpm run lint:check`，不运行带 `--fix` 或 `--write` 的脚本。
 - 根目录 CI 同时覆盖后端与前端，不能放在子项目内导致平台不识别。
 - Phase 1 接入 `import-linter` 或等价工具并保存当前违规基线，CI 阻止新增反向依赖；G5 前必须清空相关基线并改为严格失败。
+
+当前状态：后端 `ruff check --no-fix`、前端 `lint:check` 和检查后 `git diff --exit-code` 已进入根目录工作流；本地只读检查通过。需在远端运行并处理后端测试失败后，才能与 G0 一起关闭。
 
 ## G2：安全与权限矩阵
 

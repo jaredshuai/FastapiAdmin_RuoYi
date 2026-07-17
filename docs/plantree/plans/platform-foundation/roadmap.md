@@ -9,10 +9,12 @@
 - 接受“RuoYi-Vue-Plus 是能力参考，不做全量 FastAPI 翻译”的战略方向。
 - 建立规划入口、基线、风险清单、阶段门槛和未决问题。
 - 完成 Phase 0 首次提交：固定参考 submodule，闭合前端生成顺序，并落地忽略、环境示例和只读检查策略。
+- 固定 Python、uv、Node、pnpm、MySQL、Redis 和 Nginx 版本，解决 Windows 误选 LibreOffice Python 的问题。
+- 建立根目录 backend/frontend/compose 三任务质量工作流，并完成首轮本地基线记录。
 
 ## In Progress
 
-- Phase 0 可重复基线：固定工具与服务版本，建立根目录非破坏性 CI 并运行完整 G0-G1 基线。
+- Phase 0 可重复基线：处理 3 项后端测试失败，取得 GitHub Actions 运行证据并关闭 G0-G1。
 
 ## Next
 

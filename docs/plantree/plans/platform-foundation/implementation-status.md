@@ -10,17 +10,19 @@ Phase 0：可重复基线。
 
 - 代码基线：`1966c53`。
 - 2026-07-17：本次提交落地规划树、固定版本参考 submodule、前端生成/只读检查、忽略与环境策略及清单前身链接。
+- 2026-07-17：工具链提交 `6ece7461` 固定 Python 3.12.13、uv 0.11.15、Node 24.15.0、pnpm 9.15.3 及 Compose 镜像补丁版本。
+- 2026-07-17：根目录质量工作流覆盖后端、前端和 Compose，原子项目内无效工作流退出；本地基线结果已记录。
 
 ## Next Target
 
-建立根目录非破坏性 CI，在干净检出中重复执行后端、前端和 Compose 基线命令。
+修复 readiness 状态语义和订单详情路由/测试契约这 3 项后端失败，随后推送并取得根目录 CI 证据，关闭 G0-G1。
 
 ## Active TODO
 
-1. 固定 Python、uv、Node、pnpm、MySQL 和 Redis 版本。
-2. 建立根目录 CI，设置 `HUSKY=0`，断言 `pnpm --version` 为 `9.15.3`，并运行前后端只读检查。
-3. 运行后端测试、前端测试和 Compose 配置校验，记录失败基线。
-4. 关闭 G0-G1 后进入 Phase 1 安全与生产硬化。
+1. 修复 readiness 中 `DependencyStatus.status` 的构造值与成功判断语义不一致，并复测两个失败用例。
+2. 核对 `/platform/order/detail/1` 的目标路由契约，修正路由或测试后复测。
+3. 推送当前提交，用 GitHub Actions 验证 backend/frontend/compose 三个 job。
+4. 全套命令通过并关闭 G0-G1 后，进入 Phase 1 安全与生产硬化。
 
 ## Blocked By
 
@@ -35,6 +37,6 @@ Phase 0：可重复基线。
 
 ## Last Verified
 
-2026-07-17：在不含依赖、构建目录和三个忽略生成物的隔离前端副本中，设置 `HUSKY=0` 后，`pnpm install --frozen-lockfile`、`pnpm run lint:check`、`pnpm run build` 依次通过；`gen:auto-imports` 从 422 个源码文件生成声明。另以明确的 `pnpm@9.15.3` 再次执行冻结安装并通过，确认现有 `pnpm.overrides` 与锁文件匹配；本机全局 pnpm 11 启动器的迁移告警不应驱动仓库在升级包管理器前搬迁配置。G0 仍等待根目录 CI、后端、测试和 Compose 基线。
+2026-07-17：uv 托管 Python 3.12.13 与 107 个冻结依赖安装成功；Ruff 只读检查通过；pytest 收集 265 项，262 通过、3 失败。Node 24.15.0 与 pnpm 9.15.3 下，前端冻结安装、只读 lint、3 项 Vitest、类型检查和生产构建通过；Compose 配置解析通过。根目录工作流 YAML 可解析为 3 个 job 且通过 Prettier。完整证据与失败明细见[验证记录](../../baseline/verification-2026-07-17.md)。
 
 2026-07-17 首次提交预检：`.codegraph/`、`.commandcode/`、Python 缓存、虚拟环境和本地环境文件已纳入忽略；`backend/uv.lock` 保持跟踪。两个 reference submodule 的索引 gitlink、工作树 HEAD 与远端发布标签提交一致。前端生成物继续忽略并由检查/构建前置生成；Docker 本地 `.env` 退出索引并由安全 example 取代，已提交的 `VITE_*` 文件只作为客户端可见构建配置。
