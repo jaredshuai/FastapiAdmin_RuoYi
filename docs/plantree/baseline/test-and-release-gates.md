@@ -20,7 +20,7 @@ Phase 1 的权限修复可以继续用集成测试验证现有真实依赖链，
 
 要求：
 
-- 锁定并记录 Python 3.12、uv、Node 20+、pnpm 9、数据库和 Redis 版本。
+- 锁定并记录 Python `3.12.13`、uv `0.11.15`、Node `24.15.0`、pnpm `9.15.3`、MySQL `8.0.43` 和 Redis `7.4.5-alpine`；以[工具链版本契约](toolchain.md)为准。
 - 新机器按照文档能够安装依赖、启动后端和前端。
 - 不依赖宿主机偶然存在的 Python、全局包或未声明环境变量。
 - 前端自动导入声明和 ESLint globals 必须由确定性命令生成或作为受审查产物提交；`type-check`、`lint:check`、`build` 不能依赖此前运行过 Vite。
@@ -29,14 +29,18 @@ Phase 1 的权限修复可以继续用集成测试验证现有真实依赖链，
 候选验证命令：
 
 ```powershell
-cd backend
-uv sync --frozen
-uv run python --version
-uv run pytest
+uv --version # 必须为 0.11.15
+uv python install 3.12.13
+uv sync --project backend --frozen
+uv run --project backend python --version # 必须为 3.12.13
+uv run --project backend ruff check --no-fix .
+uv run --project backend pytest
 
-cd ..\frontend\web
+cd frontend\web
+node --version # 必须为 v24.15.0
 pnpm --version # 必须为 9.15.3
 pnpm install --frozen-lockfile
+pnpm run lint:check
 pnpm run type-check
 pnpm run test
 pnpm run build
