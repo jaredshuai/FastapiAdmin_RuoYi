@@ -16,17 +16,17 @@ ALEMBIC_VERSION_DIR.mkdir(parents=True, exist_ok=True)
 
 # 清除MappedBase.metadata中的表定义，避免重复注册
 if hasattr(MappedBase, "metadata") and MappedBase.metadata.tables:
-    print(f"🧹 清除已存在的表定义，当前有 {len(MappedBase.metadata.tables)} 个表")
+    print(f"清除已存在的表定义，当前有 {len(MappedBase.metadata.tables)} 个表")
     # 创建一个新的空metadata对象
     from sqlalchemy import MetaData
 
     MappedBase.metadata = MetaData()
-    print("✅️ 已重置metadata")
+    print("已重置 metadata")
 
 # 自动查找所有模型
-print("🔍 开始查找模型...")
+print("开始查找模型...")
 found_models = ImportUtil.find_models(MappedBase)
-print(f"📊 找到 {len(found_models)} 个有效模型")
+print(f"找到 {len(found_models)} 个有效模型")
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -111,9 +111,9 @@ def run_migrations_online() -> None:
             if all_empty:
                 # 如果没有实际变更，不生成迁移文件
                 directives[:] = []
-                print("❎️ 未检测到模型变更，不生成迁移文件")
+                print("未检测到模型变更，不生成迁移文件")
             else:
-                print("✅️ 检测到模型变更，生成迁移文件")
+                print("检测到模型变更，生成迁移文件")
 
         context.configure(
             connection=connection,
@@ -127,7 +127,34 @@ def run_migrations_online() -> None:
         with context.begin_transaction():
             context.run_migrations()
 
-    asyncio.run(run_async_migrations())
+    # 兼容已运行中的事件循环（如 FastAPI lifespan / pytest-asyncio）：
+    # 在独立线程跑 asyncio.run，避免与当前 loop 冲突。
+    try:
+        asyncio.get_running_loop()
+        in_running_loop = True
+    except RuntimeError:
+        in_running_loop = False
+
+    if in_running_loop:
+        # 已在事件循环内：放新线程跑 asyncio.run，当前线程 join 等待
+        import threading
+        from typing import Any
+
+        result: dict[str, Any] = {"exc": None}
+
+        def _runner() -> None:
+            try:
+                asyncio.run(run_async_migrations())
+            except Exception as e:  # noqa: BLE001 — 跨线程回传
+                result["exc"] = e
+
+        worker = threading.Thread(target=_runner, daemon=True)
+        worker.start()
+        worker.join()
+        if result["exc"] is not None:
+            raise result["exc"]
+    else:
+        asyncio.run(run_async_migrations())
 
 
 if context.is_offline_mode():

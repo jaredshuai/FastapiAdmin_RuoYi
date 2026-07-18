@@ -11,9 +11,11 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import sessionmaker
 
 from app.config.setting import settings
-from app.core.base_model import MappedBase
 from app.core.exceptions import CustomException
 from app.core.logger import logger
+
+# Engine 与 session 工厂均在本模块导入时创建；该值用于拒绝同一进程静默切换环境。
+DATABASE_ENVIRONMENT = settings.ENVIRONMENT
 
 
 def create_engine_and_session(
@@ -108,28 +110,6 @@ def create_async_engine_and_session(
 
 engine, db_session = create_engine_and_session()
 async_engine, async_db_session = create_async_engine_and_session()
-
-
-async def create_tables() -> None:
-    """
-    创建数据库表（根据 ORM metadata）。
-
-    返回:
-    - None
-    """
-    async with async_engine.begin() as coon:
-        await coon.run_sync(MappedBase.metadata.create_all)
-
-
-async def drop_tables() -> None:
-    """
-    删除数据库表（根据 ORM metadata）。
-
-    返回:
-    - None
-    """
-    async with async_engine.begin() as conn:
-        await conn.run_sync(MappedBase.metadata.drop_all)
 
 
 async def redis_connect(app: FastAPI, status: bool) -> Redis | None:

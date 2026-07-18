@@ -97,6 +97,7 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
+    "app/alembic/versions",  # Alembic 自动生成迁移脚本，不做 ruff 检查
 ]
 extend-include = ["*.pyw"]
 

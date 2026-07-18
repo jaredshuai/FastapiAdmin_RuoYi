@@ -17,13 +17,12 @@ Phase 1：安全与生产硬化。
 
 ## Next Target
 
-建立 G2 权限负向测试矩阵，优先覆盖权限通配符、超级管理员判定和管理员专属服务保护不一致。
+完成草稿 PR #1 的评审与合并；随后用真实上一发布版本数据库副本完成 G3 升级与恢复演练。
 
 ## Active TODO
 
-1. 盘点现有鉴权入口及通配符、超级管理员、管理员专属服务的实际判定路径。
-2. 按未登录、无权限、停用角色、套餐收缩和跨租户读写建立负向测试矩阵。
-3. 先写失败测试，再逐项修复权限语义；每项保留可复现证据。
+1. 评审并合并[草稿 PR #1](https://github.com/jaredshuai/FastapiAdmin_RuoYi/pull/1)。
+2. 在真实旧库副本上演练备份、结构比较、受控 stamp、upgrade 和恢复，补齐 G3 证据。
 
 ## Blocked By
 
@@ -37,6 +36,8 @@ Phase 1：安全与生产硬化。
 - 存量 service 暂时持有 `AsyncSession` 只代表内部重构尚未完成，不授权跨模块写表。Phase 2 必须建立全仓跨模块模型导入、裸 SQL 和写表清单并清零跨模块写入；只访问本模块表的混合 service 可作为后续逐模块迁移项保留。
 
 ## Last Verified
+
+2026-07-18：Phase 1 审计修正已提交至[草稿 PR #1](https://github.com/jaredshuai/FastapiAdmin_RuoYi/pull/1)，首轮 GitHub Actions [运行 #29635091044](https://github.com/jaredshuai/FastapiAdmin_RuoYi/actions/runs/29635091044) 的后端、前端与 Compose 三个 job 全绿。本地后端为 `319 passed, 1 warning`，import-linter 存量冻结基线为 3 kept/0 broken；已消除 HTTP 测试假绿，生产配置、Alembic 基线/存量库保护、容器自包含、跨租户拒绝与超管规则均有对应证据。真实上一发布版本数据库恢复演练和 G5 严格边界仍待完成。详见[Phase 1 验证记录](../../baseline/verification-2026-07-18-phase1.md)。
 
 2026-07-17：uv 托管 Python 3.12.13 与 107 个冻结依赖安装成功；Ruff 只读检查通过；pytest 收集 265 项并全部通过。Node 24.15.0 与 pnpm 9.15.3 下，前端冻结安装、只读 lint、3 项 Vitest、类型检查和生产构建通过；Compose 配置解析通过。GitHub Actions [运行 #29587268152](https://github.com/jaredshuai/FastapiAdmin_RuoYi/actions/runs/29587268152) 的 3 个 job 全绿。完整证据与已修正失败见[验证记录](../../baseline/verification-2026-07-17.md)。
 

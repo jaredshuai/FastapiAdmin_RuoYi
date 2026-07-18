@@ -156,7 +156,7 @@ class CRUDBase[ModelType: MappedBase, CreateSchemaType: BaseModel, UpdateSchemaT
             kwargs["id"] = id
         obj = await self.get(preload=preload, **kwargs)
         if not obj:
-            raise CustomException(msg=msg)
+            raise CustomException(msg=msg, code=404, status_code=404)
         return out_schema.model_validate(obj) if out_schema else obj
 
     async def exists(self, **kwargs) -> bool:

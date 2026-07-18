@@ -3,7 +3,7 @@ conftest — 模块化 API 接口测试共享 fixture。
 
 提供:
 - test_client: FastAPI TestClient 实例 (session 级复用)
-- assert_route: 验证接口路由存在 (status_code != 404)
+- assert_route: 验证接口返回精确状态码；应用异常必须直接使测试失败
 """
 
 import os
@@ -31,6 +31,10 @@ os.environ["DATABASE_NAME"] = _TEST_DB_PATH
 os.environ["REDIS_ENABLE"] = "true"
 os.environ["POOL_SIZE"] = "1"
 os.environ["MAX_OVERFLOW"] = "1"
+# 运行时配置校验需要真实 SECRET_KEY 和安全的 CORS（见 setting.validate_runtime_config）
+os.environ["SECRET_KEY"] = "test-secret-for-unit-tests-only-32bytes"
+os.environ["ALLOW_ORIGINS"] = '["https://test.example.com"]'
+os.environ["ALLOW_CREDENTIALS"] = "true"
 
 from app.config.setting import settings
 
@@ -40,6 +44,9 @@ settings.REDIS_ENABLE = True
 settings.POOL_SIZE = 1
 settings.MAX_OVERFLOW = 1
 settings.CAPTCHA_ENABLE = False  # 测试环境关闭验证码
+settings.SECRET_KEY = "test-secret-for-unit-tests-only-32bytes"
+settings.ALLOW_ORIGINS = ["https://test.example.com"]
+settings.ALLOW_CREDENTIALS = True
 
 # ============================================================
 # Mock Redis — dict 存储，支持 get/set/delete/exists/keys/ttl/expire
@@ -164,6 +171,7 @@ patch("app.core.ap_scheduler.SchedulerUtil.shutdown", new=AsyncMock()).start()
 from fastapi_limiter.depends import RateLimiter, WebSocketRateLimiter
 from starlette.requests import Request
 from starlette.responses import Response
+from starlette.routing import Match
 
 
 async def _noop_rate_limit(request: Request, response: Response) -> None:
@@ -182,7 +190,9 @@ WebSocketRateLimiter.__call__ = _noop_rate_limit
 async def _test_lifespan(app) -> AsyncGenerator[Any, None]:
     from app.scripts.initialize import InitializeData
 
-    await InitializeData().init_db()
+    initializer = InitializeData()
+    await initializer.upgrade_schema()
+    await initializer.seed()
     app.state.redis = _mock_redis
 
     # 将 admin 密码重置为已知密码 "admin123"
@@ -243,22 +253,37 @@ def auth_headers(_api_client: TestClient) -> dict[str, str]:
 # ============================================================
 
 
+def assert_route_registered(
+    test_client: TestClient,
+    method: str,
+    path: str,
+) -> None:
+    """只验证路由表契约；签名拒绝认证、状态码和请求体等 HTTP 参数。"""
+    route_path = path.partition("?")[0]
+    scope = {"type": "http", "method": method.upper(), "path": route_path}
+    for route in test_client.app.routes:
+        match, _ = route.matches(scope)
+        if match is Match.FULL:
+            return
+    raise AssertionError(f"{method} {route_path} 未注册")
+
+
 def assert_route(
     test_client: TestClient,
     method: str,
     path: str,
     *,
-    expected_status: int | None = None,
+    expected_status: int,
     auth: dict[str, str] | None = None,
     **kwargs,
-) -> None:
-    """断言接口路由存在且返回码符合预期。
+) -> Response:
+    """断言接口返回精确状态码，并把响应交给调用方继续验证业务数据。
 
     Args:
         test_client: FastAPI TestClient 实例。
         method: HTTP 方法 (GET/POST/PUT/DELETE 等)。
         path: 接口路径。
-        expected_status: 期望的 HTTP 状态码。为 None 时仅校验路由存在 (!= 404)。
+        expected_status: 期望的 HTTP 状态码；必须由调用方显式声明。
         auth: 认证 headers（dict），传入则合并到请求头。
         **kwargs: 传递给 TestClient 请求方法的额外参数 (json/data/params/headers 等)。
     """
@@ -270,17 +295,14 @@ def assert_route(
     if headers:
         kwargs["headers"] = headers
 
-    try:
-        response = test_client.request(method, path, **kwargs)
-    except Exception:
-        # 后端代码异常（500 等），路由存在即不计为测试失败
-        return
-
-    if expected_status is not None:
-        assert response.status_code == expected_status, (
-            f"{method} {path} 期望 {expected_status}，实际 {response.status_code}"
-        )
-    else:
-        assert response.status_code != 404, (
-            f"{method} {path} 返回 404，路由未注册"
-        )
+    response = test_client.request(method, path, **kwargs)
+    assert response.status_code == expected_status, (
+        f"{method} {path} 期望 {expected_status}，实际 {response.status_code}: {response.text}"
+    )
+    if response.headers.get("content-type", "").startswith("application/json"):
+        payload = response.json()
+        assert payload.get("status_code") == expected_status
+        assert payload.get("success") is (200 <= expected_status < 300)
+        assert "msg" in payload
+        assert "data" in payload
+    return response

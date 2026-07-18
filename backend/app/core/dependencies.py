@@ -163,9 +163,9 @@ async def _load_user_from_db(db: AsyncSession, username: str):
 
     # 过滤不可用的角色和职位（在会话内完成，确保关联数据已加载）
     if hasattr(user, "roles"):
-        user.roles = [role for role in user.roles if role and role.status]
+        user.roles = [role for role in user.roles if role and role.status == 0]
     if hasattr(user, "positions"):
-        user.positions = [pos for pos in user.positions if pos and pos.status]
+        user.positions = [pos for pos in user.positions if pos and pos.status == 0]
 
     return user
 
@@ -294,13 +294,16 @@ async def _get_cached_tenant_menu_ids(auth: AuthSchema, tenant_id: int) -> list[
 
     from app.api.v1.module_platform.package.service import PackageService
 
-    result = await PackageService.get_tenant_available_menu_ids(auth, tenant_id)
+    result = await PackageService(auth).get_tenant_available_menu_ids(tenant_id)
     _package_menu_cache[tenant_id] = (time.time(), result)
     return result
 
 
 class AuthPermission:
     """权限验证类"""
+
+    # 路由声明中禁止使用的通配符权限标识
+    _FORBIDDEN_WILDCARDS: tuple[str, ...] = ("*", "*:*:*")
 
     def __init__(
         self,
@@ -313,9 +316,20 @@ class AuthPermission:
         参数:
         - permissions (list[str] | None): 权限标识列表。
         - check_data_scope (bool): 是否启用严格模式校验。
+
+        异常:
+            ValueError: permissions 包含禁止的通配符标识。
         """
         self.permissions = permissions or []
         self.check_data_scope = check_data_scope
+
+        # 启动期断言：路由不允许声明通配符权限
+        for perm in self.permissions:
+            if perm in self._FORBIDDEN_WILDCARDS:
+                raise ValueError(
+                    f"路由声明禁止使用通配符权限标识: {perm}；"
+                    "应声明具体权限编码或仅用于超级管理员放行场景"
+                )
 
     async def __call__(self, auth: AuthSchema = Depends(get_current_user)) -> AuthSchema:
         """
@@ -336,10 +350,6 @@ class AuthPermission:
 
         # 无需验证权限
         if not self.permissions:
-            return auth
-
-        # 超级管理员权限标识
-        if "*" in self.permissions or "*:*:*" in self.permissions:
             return auth
 
         # 检查用户是否有角色
@@ -392,7 +402,11 @@ def require_superadmin(func):
     @wraps(func)
     async def wrapper(self, *args, **kwargs):
         if not self.auth.user or not self.auth.user.is_superuser:
-            raise CustomException(msg="仅平台管理员可操作")
+            raise CustomException(
+                msg="仅平台管理员可操作",
+                code=10403,
+                status_code=403,
+            )
         return await func(self, *args, **kwargs)
 
     return wrapper

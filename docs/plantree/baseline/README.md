@@ -20,7 +20,9 @@
 - [storage-and-state.md](storage-and-state.md)：数据库、Redis、进程状态和配置边界。
 - [toolchain.md](toolchain.md)：本地、CI 和容器使用的固定版本契约。
 - [verification-2026-07-17.md](verification-2026-07-17.md)：Phase 0 本地命令、结果和失败基线。
+- [verification-2026-07-18-phase1.md](verification-2026-07-18-phase1.md)：Phase 1 审计修正、本地数据库/容器 smoke 与剩余门槛。
 - [test-and-release-gates.md](test-and-release-gates.md)：从可运行到可发布的验证门槛。
+- [database-migration-runbook.md](database-migration-runbook.md)：全新数据库与旧 `create_all` 数据库的升级、stamp 和恢复步骤。
 - [risk-hotspots.md](risk-hotspots.md)：当前优先处理的风险。
 
 ## 刷新规则

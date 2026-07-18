@@ -28,8 +28,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
     from app.core.ap_scheduler import SchedulerUtil
 
     try:
-        await InitializeData().init_db()
-        logger.info("✅ {}数据库初始化完成", settings.DATABASE_TYPE)
+        await InitializeData().upgrade_schema()
+        logger.info("✅ Alembic 迁移已应用")
         await import_modules_async(modules=settings.EVENT_LIST, desc="全局事件", app=app, status=True)
         logger.info("✅ 全局事件模块加载完成")
         await ParamsService.init_cache(redis=app.state.redis)
@@ -117,6 +117,10 @@ def register_files(app: FastAPI) -> None:
 
 
 def reset_api_docs(app: FastAPI) -> None:
+    # 仅在显式启用时注册 /docs、/redoc、/openapi.json；生产环境必须关闭
+    if not settings.DOCS_ENABLE:
+        return
+
     swagger_ui_redirect_url = str(app.swagger_ui_oauth2_redirect_url)
     root_openapi_url = str(app.root_path) + str(app.openapi_url)
 
