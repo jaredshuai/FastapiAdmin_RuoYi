@@ -1,0 +1,128 @@
+{
+  "$defs": {
+    "DependencyDecl": {
+      "description": "依赖声明 — 模块显式声明的对内/对外依赖。",
+      "properties": {
+        "module": {
+          "description": "被依赖模块名（如 module_system）",
+          "title": "Module",
+          "type": "string"
+        },
+        "kind": {
+          "description": "依赖类型（service / model / util）",
+          "title": "Kind",
+          "type": "string"
+        },
+        "optional": {
+          "default": false,
+          "description": "是否可选依赖",
+          "title": "Optional",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "module",
+        "kind"
+      ],
+      "title": "DependencyDecl",
+      "type": "object"
+    },
+    "PublicInterfaceDecl": {
+      "description": "公共接口声明 — 模块对外暴露的稳定调用面。\n\nPhase 2 装配器据此判定模块间允许的调用边界。",
+      "properties": {
+        "name": {
+          "description": "接口名（如 OrderService）",
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "description": "接口类型（service / router / model / util）",
+          "title": "Kind",
+          "type": "string"
+        },
+        "public_methods": {
+          "description": "对外暴露的方法名清单；空列表表示全部公开",
+          "items": {
+            "type": "string"
+          },
+          "title": "Public Methods",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "kind"
+      ],
+      "title": "PublicInterfaceDecl",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "模块清单 Schema — 单个模块的元数据与边界声明。\n\n新模块必须用 manifest_schema_version=\"v1\" 声明依赖与公共接口；\n旧 plugin.toml 经兼容读取器映射为 manifest_schema_version=\"legacy-v0\"。",
+  "properties": {
+    "manifest_schema_version": {
+      "default": "legacy-v0",
+      "description": "清单 Schema 版本（legacy-v0 / v1）",
+      "title": "Manifest Schema Version",
+      "type": "string"
+    },
+    "name": {
+      "description": "模块名（与目录名 module_<name> 一致）",
+      "title": "Name",
+      "type": "string"
+    },
+    "title": {
+      "default": "",
+      "description": "展示标题",
+      "title": "Title",
+      "type": "string"
+    },
+    "version": {
+      "default": "0.0.0",
+      "description": "模块版本",
+      "title": "Version",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "description": "模块描述",
+      "title": "Description",
+      "type": "string"
+    },
+    "optional": {
+      "default": true,
+      "description": "是否可选模块",
+      "title": "Optional",
+      "type": "boolean"
+    },
+    "tags": {
+      "description": "标签",
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "dependencies": {
+      "description": "显式依赖声明（v1 必填，legacy-v0 一律为空）",
+      "items": {
+        "$ref": "#/$defs/DependencyDecl"
+      },
+      "title": "Dependencies",
+      "type": "array"
+    },
+    "public_interfaces": {
+      "description": "公共接口声明（v1 必填，legacy-v0 一律为空）",
+      "items": {
+        "$ref": "#/$defs/PublicInterfaceDecl"
+      },
+      "title": "Public Interfaces",
+      "type": "array"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "title": "ModuleManifest",
+  "type": "object"
+}

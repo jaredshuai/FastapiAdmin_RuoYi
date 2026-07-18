@@ -18,6 +18,8 @@ jobs:
   backend:
     name: 后端冻结安装、静态检查与测试
     runs-on: ubuntu-latest
+    env:
+      PYTHONUTF8: "1"
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -46,12 +48,16 @@ jobs:
         run: test "$(uv run --project backend --managed-python python -c 'import platform; print(platform.python_version())')" = "3.12.13"
 
       - name: Ruff 只读检查
-        run: uv run --project backend --managed-python ruff check --no-fix .
+        working-directory: backend
+        run: uv run --managed-python ruff check --no-fix .
+
+      - name: import-linter 模块边界检查
+        working-directory: backend
+        run: uvx --from import-linter==2.3 lint-imports
 
       - name: 后端测试
-        env:
-          PYTHONUTF8: "1"
-        run: uv run --project backend --managed-python pytest
+        working-directory: backend
+        run: uv run --managed-python pytest
 
       - name: 确认检查未修改受控文件
         if: always()
@@ -124,4 +130,6 @@ jobs:
           submodules: false
 
       - name: 解析 Compose 配置
-        run: docker compose --env-file docker/.env.example -f docker/docker-compose-example.yaml config --quiet
+        run: |
+          docker compose --env-file docker/.env.example -f docker/docker-compose-example.yaml config --quiet
+          docker compose --env-file docker/.env.example -f docker/docker-compose-dev.yaml config --quiet

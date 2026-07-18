@@ -4,22 +4,26 @@
 # ============================================
 
 # Python 缓存
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache
-.mypy_cache
-.ruff_cache
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.import_linter_cache/
 
 # 虚拟环境
-venv
-.venv
-.env
+**/venv/
+**/.venv/
+**/.env
+**/.env.*
+!backend/env/.env.dev.example
+!backend/env/.env.prod.example
 
 # 编辑器/IDE
-.vscode
-.idea
+**/.vscode/
+**/.idea/
 *.swp
 *.swo
 
@@ -28,12 +32,15 @@ venv
 Thumbs.db
 
 # 版本控制
-.git
+.git/
 .gitignore
 .gitattributes
+.codegraph/
+.commandcode/
+references/
 
 # 日志
-logs
+**/logs/
 *.log
 
 # 数据库
@@ -41,16 +48,14 @@ logs
 *.sqlite3
 
 # 前端工程（后端镜像不需要）
-frontend
+frontend/
 
 # 部署脚本
 deploy.sh
 deploy.bat
 
 # 文档
-README.md
-README.en.md
-LICENSE
+docs/
 
 # 数据库迁移（构建镜像时不包含，启动时动态执行）
 # 取消注释以加速构建：backend/alembic/versions

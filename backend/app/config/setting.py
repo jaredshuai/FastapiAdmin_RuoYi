@@ -1,7 +1,7 @@
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from urllib.parse import quote_plus
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,12 +9,21 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.common.enums import EnvironmentEnum
 from app.config.path_conf import BASE_DIR, ENV_DIR
 
+# 已知不安全占位符族：任一片段出现在 SECRET_KEY 中即视为未配置，
+# 因而 `change-me-to-a-real-secret` 这类在占位符后追加文本的值也会被拒绝。
+_INSECURE_SECRET_PLACEHOLDERS: tuple[str, ...] = (
+    "vgb0tnl9d58+6n-6h-ea&u^1#s0ccp!794=krylxcjq75vzps$",
+    "change-me",
+    "changeme",
+    "CHANGE_ME",
+    "CHANGE-ME",
+)
+
 
 class Settings(BaseSettings):
     """系统配置类"""
 
     model_config = SettingsConfigDict(
-        env_file=ENV_DIR / f".env.{os.getenv('ENVIRONMENT')}",
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=True,  # 区分大小写
@@ -42,6 +51,8 @@ class Settings(BaseSettings):
     DOCS_URL: str = "/docs"  # Swagger UI路径
     REDOC_URL: str = "/redoc"  # ReDoc路径
     ROOT_PATH: str = "/api/v1"  # API路由前缀
+    # 是否启用 API 文档（/docs /redoc /openapi.json）；生产环境必须关闭
+    DOCS_ENABLE: bool = True
 
     # ================================================= #
     # ******************** 日志配置 ******************** #
@@ -61,7 +72,8 @@ class Settings(BaseSettings):
     # ================================================= #
     # ******************* 登录认证配置 ****************** #
     # ================================================= #
-    SECRET_KEY: str = "vgb0tnl9d58+6n-6h-ea&u^1#s0ccp!794=krylxcjq75vzps$"  # JWT密钥
+    # JWT 密钥：必须由环境变量提供，不接受源码默认值
+    SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"  # JWT算法
     ACCESS_TOKEN_EXPIRE_SECONDS: int = 60 * 60 * 12  # access_token过期时间(秒)12 小时
     REFRESH_TOKEN_EXPIRE_SECONDS: int = 60 * 60 * 12  # refresh_token过期时间(秒)12 小时
@@ -283,6 +295,7 @@ class Settings(BaseSettings):
             "summary": self.SUMMARY,
             "docs_url": None,
             "redoc_url": None,
+            "openapi_url": "/openapi.json" if self.DOCS_ENABLE else None,
             "root_path": self.ROOT_PATH,
             "responses": {
                 200: {"description": "成功"},
@@ -295,10 +308,73 @@ class Settings(BaseSettings):
             },
         }
 
+    def validate_runtime_config(self) -> None:
+        """运行时配置校验。
+
+        通用约束：
+        - SECRET_KEY 必须由环境变量提供；空值或已知占位符直接失败。
+        - ALLOW_ORIGINS=["*"] 与 ALLOW_CREDENTIALS=True 组合违反浏览器安全规范，禁止。
+
+        生产环境（ENVIRONMENT == prod）额外约束：
+        - DEBUG 必须为 False。
+        - DOCS_ENABLE 必须为 False；/docs、/redoc、/openapi.json 不应暴露。
+        - CORS 白名单不允许包含 "*"；必须填写实际前端域名。
+
+        参数:
+            self: Settings 实例。
+
+        异常:
+            RuntimeError: 任一校验失败时抛出，包含具体不满足的约束。
+        """
+        errors: list[str] = []
+
+        # 通用：SECRET_KEY 必须真实
+        secret = self.SECRET_KEY or ""
+        if not secret:
+            errors.append("SECRET_KEY 未设置：必须通过环境变量提供真实密钥")
+        elif any(placeholder in secret for placeholder in _INSECURE_SECRET_PLACEHOLDERS):
+            errors.append("SECRET_KEY 为已知不安全占位符：必须替换为真实密钥")
+
+        # 通用：CORS 通配符 + 凭证组合禁止
+        if "*" in self.ALLOW_ORIGINS and self.ALLOW_CREDENTIALS:
+            errors.append(
+                "ALLOW_ORIGINS=['*'] 与 ALLOW_CREDENTIALS=True 组合违反浏览器安全规范"
+            )
+
+        is_prod = self.ENVIRONMENT == EnvironmentEnum.PROD
+
+        # 生产专属
+        if is_prod:
+            if self.DEBUG:
+                errors.append("生产环境 DEBUG 必须为 False")
+            if self.DOCS_ENABLE:
+                errors.append("生产环境 DOCS_ENABLE 必须为 False")
+            if "*" in self.ALLOW_ORIGINS:
+                errors.append(
+                    "生产环境 ALLOW_ORIGINS 不允许包含 '*'；必须填写实际前端域名"
+                )
+
+        if errors:
+            raise RuntimeError(
+                "运行时配置校验失败：\n  - " + "\n  - ".join(errors)
+            )
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    return Settings()
+    environment = os.getenv("ENVIRONMENT", EnvironmentEnum.DEV.value)
+    env_file = ENV_DIR / f".env.{environment}"
+    return Settings(_env_file=env_file)
 
 
-settings = get_settings()
+class _SettingsProxy:
+    """始终转发到当前缓存的 Settings，避免模块级旧实例锁死环境。"""
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(get_settings(), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        setattr(get_settings(), name, value)
+
+
+settings = cast(Settings, _SettingsProxy())

@@ -1,0 +1,84 @@
+[importlinter]
+# import-linter 配置 — Phase 1 模块边界守护
+#
+# 策略：先记录现有违规基线，CI 阻止新增违规，不要求立刻清零。
+# 后续 Phase 2 逐步收紧：core 反向依赖业务模块、跨模块直写等。
+# ignore_imports 中的每一项都是存量违规，禁止新增；清零工作留到 Phase 2。
+
+# ---- 通用配置 ----
+root_package = app
+
+# ---- 契约 1：core 不应反向依赖 module_* ----
+[importlinter:contract:no-core-to-business]
+name = core 不反向依赖业务模块
+type = forbidden
+source_modules =
+    app.core
+forbidden_modules =
+    app.api.v1.module_system
+    app.api.v1.module_platform
+    app.api.v1.module_common
+    app.api.v1.module_monitor
+    app.plugin
+# 现有违规基线（Phase 1 容忍，Phase 2 清零）
+ignore_imports =
+    app.core.ap_scheduler -> app.api.v1.module_platform.order.service
+    app.core.ap_scheduler -> app.api.v1.module_platform.tenant.service
+    app.core.ap_scheduler -> app.api.v1.module_system.log.service
+    app.core.ap_scheduler -> app.plugin.module_task.cronjob.job.model
+    app.core.ap_scheduler -> app.plugin.module_task.cronjob.node.model
+    app.core.base_model -> app.api.v1.module_platform.tenant.model
+    app.core.base_model -> app.api.v1.module_system.user.model
+    app.core.base_schema -> app.api.v1.module_system.user.model
+    app.core.dependencies -> app.api.v1.module_platform.package.service
+    app.core.dependencies -> app.api.v1.module_system.role.model
+    app.core.dependencies -> app.api.v1.module_system.user.model
+    app.core.middlewares -> app.api.v1.module_system.params.service
+    app.core.permission -> app.api.v1.module_platform.package.service
+    app.core.permission -> app.api.v1.module_system.dept.model
+    app.core.permission -> app.api.v1.module_system.user.model
+    app.core.router_class -> app.api.v1.module_system.log.schema
+    app.core.router_class -> app.api.v1.module_system.log.service
+
+# ---- 契约 2：module_platform 不应直接导入 module_system（跨域反向） ----
+# 间接依赖（经 core.base_crud/permission 等）Phase 2 拆分 core 后再收紧
+[importlinter:contract:no-platform-to-system]
+name = 平台模块不直接导入系统模块
+type = forbidden
+allow_indirect_imports = True
+source_modules =
+    app.api.v1.module_platform
+forbidden_modules =
+    app.api.v1.module_system
+# 现有违规基线（Phase 1 容忍，Phase 2 清零）
+ignore_imports =
+    app.api.v1.module_platform.menu.model -> app.api.v1.module_system.role.model
+    app.api.v1.module_platform.order.model -> app.api.v1.module_system.user.model
+    app.api.v1.module_platform.order.service -> app.api.v1.module_system.dept.model
+    app.api.v1.module_platform.order.service -> app.api.v1.module_system.role.model
+    app.api.v1.module_platform.order.service -> app.api.v1.module_system.user.model
+    app.api.v1.module_platform.self_service.service -> app.api.v1.module_system.dept.model
+    app.api.v1.module_platform.self_service.service -> app.api.v1.module_system.role.model
+    app.api.v1.module_platform.self_service.service -> app.api.v1.module_system.user.model
+    app.api.v1.module_platform.tenant.service -> app.api.v1.module_system.dept.crud
+    app.api.v1.module_platform.tenant.service -> app.api.v1.module_system.dept.model
+    app.api.v1.module_platform.tenant.service -> app.api.v1.module_system.position.crud
+    app.api.v1.module_platform.tenant.service -> app.api.v1.module_system.role.crud
+    app.api.v1.module_platform.tenant.service -> app.api.v1.module_system.role.model
+    app.api.v1.module_platform.tenant.service -> app.api.v1.module_system.user.crud
+    app.api.v1.module_platform.tenant.service -> app.api.v1.module_system.user.model
+
+# ---- 契约 3：core 不应直接导入 plugin（插件层） ----
+# 间接依赖（经 core.ap_scheduler）Phase 2 拆分调度器后再收紧
+[importlinter:contract:no-core-to-plugin]
+name = core 不直接导入插件层
+type = forbidden
+allow_indirect_imports = True
+source_modules =
+    app.core
+forbidden_modules =
+    app.plugin
+# 现有违规基线（已合并到契约 1 的 ignore_imports）
+ignore_imports =
+    app.core.ap_scheduler -> app.plugin.module_task.cronjob.job.model
+    app.core.ap_scheduler -> app.plugin.module_task.cronjob.node.model

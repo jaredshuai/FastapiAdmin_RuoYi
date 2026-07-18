@@ -17,13 +17,13 @@ Phase 1：安全与生产硬化。
 
 ## Next Target
 
-建立 G2 权限负向测试矩阵，优先覆盖权限通配符、超级管理员判定和管理员专属服务保护不一致。
+审查并提交 Phase 1 审计修正切片，取得 GitHub Actions 证据；随后用真实上一发布版本数据库副本完成 G3 升级与恢复演练。
 
 ## Active TODO
 
-1. 盘点现有鉴权入口及通配符、超级管理员、管理员专属服务的实际判定路径。
-2. 按未登录、无权限、停用角色、套餐收缩和跨租户读写建立负向测试矩阵。
-3. 先写失败测试，再逐项修复权限语义；每项保留可复现证据。
+1. 按配置、权限、迁移、容器/CI、模块清单边界审查并整理候选提交。
+2. 推送后确认 import-linter 基线冻结、后端全量测试、前端与 Compose 在干净 GitHub runner 上通过；不得把 3 kept / 0 broken 表述为 G5 严格门禁已关闭。
+3. 在真实旧库副本上演练备份、结构比较、受控 stamp、upgrade 和恢复，补齐 G3 证据。
 
 ## Blocked By
 
@@ -37,6 +37,8 @@ Phase 1：安全与生产硬化。
 - 存量 service 暂时持有 `AsyncSession` 只代表内部重构尚未完成，不授权跨模块写表。Phase 2 必须建立全仓跨模块模型导入、裸 SQL 和写表清单并清零跨模块写入；只访问本模块表的混合 service 可作为后续逐模块迁移项保留。
 
 ## Last Verified
+
+2026-07-18：Phase 1 审计修正工作树本地重验通过：已消除 `assert_route` 吞异常/非 404 假绿，将浅层接口清单明确降级为严格三参数的路由注册 smoke，拒绝状态码、认证和请求体等伪请求参数；生产 `upgrade` 缺密钥先失败，同进程数据库环境切换会被拒绝；跨租户写入同时验证目标数据未变，超管跨租户可见性已按当前规则锁定。后端 `319 passed, 1 warning`，import-linter 基线为 3 kept/0 broken；此前全新 SQLite、MySQL 8.0.43、容器和生产文档关闭证据仍有效。该结果尚未提交或推送，真实上一发布版本数据库恢复演练和 G5 严格边界仍待完成。详见[Phase 1 验证记录](../../baseline/verification-2026-07-18-phase1.md)。
 
 2026-07-17：uv 托管 Python 3.12.13 与 107 个冻结依赖安装成功；Ruff 只读检查通过；pytest 收集 265 项并全部通过。Node 24.15.0 与 pnpm 9.15.3 下，前端冻结安装、只读 lint、3 项 Vitest、类型检查和生产构建通过；Compose 配置解析通过。GitHub Actions [运行 #29587268152](https://github.com/jaredshuai/FastapiAdmin_RuoYi/actions/runs/29587268152) 的 3 个 job 全绿。完整证据与已修正失败见[验证记录](../../baseline/verification-2026-07-17.md)。
 

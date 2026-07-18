@@ -5,15 +5,18 @@
 改 JSON → 清空对应表 → 重启即可。
 """
 
-import asyncio
 import json
 import re
 from datetime import datetime, time
 from typing import Any
 
-from sqlalchemy import func, select
+# Alembic 命令行入口（在线模式由 env.py 负责运行迁移）
+from alembic.autogenerate import compare_metadata
+from alembic.migration import MigrationContext
+from sqlalchemy import Engine, func, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from alembic import command as alembic_command
 from app.api.v1.module_platform.email.model import EmailConfigModel, EmailTemplateModel
 from app.api.v1.module_platform.invoice.model import InvoiceModel
 from app.api.v1.module_platform.menu.model import MenuModel
@@ -30,12 +33,17 @@ from app.api.v1.module_system.position.model import PositionModel
 from app.api.v1.module_system.role.model import RoleModel
 from app.api.v1.module_system.ticket.model import TicketModel
 from app.api.v1.module_system.user.model import UserModel, UserRolesModel
+from app.config.alembic_conf import get_alembic_config
 from app.config.path_conf import SCRIPT_DIR
-from app.core.database import async_db_session, create_tables
+from app.core.base_model import MappedBase
+from app.core.database import async_db_session
+from app.core.database import engine as sync_engine
 from app.core.logger import logger
 from app.plugin.module_example.demo.model import DemoModel
 from app.plugin.module_task.cronjob.node.model import NodeModel
 from app.plugin.module_task.workflow.nodes.model import WorkflowNodeTypeModel
+
+alembic_cfg = get_alembic_config()
 
 
 class InitializeData:
@@ -88,17 +96,66 @@ class InitializeData:
     # 树形模型：JSON 含嵌套 children，需递归创建对象
     _RECURSIVE_TABLES: set[str] = {"platform_menu", "sys_dept"}
 
-    async def init_db(self) -> None:
-        """建表并导入种子数据"""
+    @staticmethod
+    def assert_migration_state(engine: Engine = sync_engine) -> None:
+        """拒绝直接升级未被 Alembic 接管的非空存量数据库。"""
+        with engine.connect() as connection:
+            tables = set(inspect(connection).get_table_names())
+        if tables and "alembic_version" not in tables:
+            raise RuntimeError(
+                "检测到未受 Alembic 管理的存量数据库。请先备份并验证结构，"
+                "确认等价后执行 `python main.py stamp --env=<dev|prod> "
+                "--confirm-schema-equivalent`。"
+            )
+
+    @staticmethod
+    def assert_legacy_schema_equivalent(engine: Engine = sync_engine) -> None:
+        """在 stamp 前使用 Alembic 元数据比较证明存量结构等价。"""
+        with engine.connect() as connection:
+            tables = set(inspect(connection).get_table_names())
+            if not tables:
+                raise RuntimeError("数据库为空，无需 stamp；请直接执行 upgrade。")
+            if "alembic_version" in tables:
+                raise RuntimeError("数据库已由 Alembic 管理，不允许按存量库重复 stamp。")
+            migration_context = MigrationContext.configure(
+                connection,
+                opts={"compare_type": True, "compare_server_default": True},
+            )
+            differences = compare_metadata(migration_context, MappedBase.metadata)
+
+        if differences:
+            preview = "; ".join(repr(item) for item in differences[:5])
+            raise RuntimeError(
+                f"存量数据库与当前模型结构不等价，禁止 stamp。差异示例: {preview}"
+            )
+
+    async def upgrade_schema(self) -> None:
+        """应用 Alembic 迁移至最新版本（head），不再使用 metadata.create_all()。
+
+        schema 变更必须通过迁移脚本，禁止应用启动期自动建表。
+        """
         try:
-            await create_tables()
-        except asyncio.exceptions.TimeoutError:
-            logger.error("❌️ 数据库表结构初始化超时")
+            self.assert_migration_state()
+            alembic_command.upgrade(alembic_cfg, "head")
+        except Exception as e:
+            logger.error(f"❌️ Alembic 迁移失败: {e}")
             raise
 
+    async def seed(self) -> None:
+        """幂等灌入种子数据：每张表为空时一次性插入，已有数据则跳过。
+
+        仅在显式调用时执行；应用启动不再自动种子。
+        """
         async with async_db_session() as session:
             async with session.begin():
                 await self.__init_data(session)
+
+    async def init_db(self) -> None:
+        """应用启动期初始化：仅执行迁移，不建表、不自动种子。
+
+        保留向后兼容入口；seed 已拆为独立命令，需显式调用。
+        """
+        await self.upgrade_schema()
 
     async def __init_data(self, db: AsyncSession) -> None:
         """按依赖顺序初始化各表种子数据"""

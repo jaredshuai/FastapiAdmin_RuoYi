@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 
 from app.api.v1.module_platform.order.crud import OrderCRUD
 from app.core.base_schema import AuthSchema
+from app.core.dependencies import require_superadmin
 from app.core.exceptions import CustomException
 from app.core.logger import logger
 
@@ -159,10 +160,12 @@ class InvoiceTenantService:
 class InvoicePlatformService:
     """平台端发票服务"""
 
-    @classmethod
+    def __init__(self, auth: AuthSchema) -> None:
+        self.auth = auth
+
+    @require_superadmin
     async def list_all(
-        cls,
-        auth: AuthSchema,
+        self,
         page_no: int,
         page_size: int,
         search: InvoiceQueryParam,
@@ -188,7 +191,7 @@ class InvoicePlatformService:
             _search["status"] = search.status
         if search.tenant_id:
             _search["tenant_id"] = search.tenant_id
-        return await InvoiceCRUD(auth).page(
+        return await InvoiceCRUD(self.auth).page(
             offset=(page_no - 1) * page_size,
             limit=page_size,
             order_by=order_by or [{"created_time": "desc"}],
@@ -196,10 +199,9 @@ class InvoicePlatformService:
             out_schema=InvoiceOutSchema,
         )
 
-    @classmethod
+    @require_superadmin
     async def issue(
-        cls,
-        auth: AuthSchema,
+        self,
         invoice_id: int,
         pdf_url: str,
         api_response: str,
@@ -218,7 +220,7 @@ class InvoicePlatformService:
         返回:
         - InvoiceOutSchema: 发票信息
         """
-        crud = InvoiceCRUD(auth)
+        crud = InvoiceCRUD(self.auth)
         invoice = await crud.get(id=invoice_id)
         if not invoice:
             raise CustomException(msg="发票不存在")
@@ -263,8 +265,8 @@ class InvoicePlatformService:
         logger.info(f"发票开具成功: invoice_no={invoice.invoice_no}")
         return InvoiceOutSchema.model_validate(invoice)
 
-    @classmethod
-    async def void(cls, auth: AuthSchema, invoice_id: int, data: InvoiceVoidSchema) -> InvoiceOutSchema:
+    @require_superadmin
+    async def void(self, invoice_id: int, data: InvoiceVoidSchema) -> InvoiceOutSchema:
         """
         平台作废发票
 
@@ -276,7 +278,7 @@ class InvoicePlatformService:
         返回:
         - InvoiceOutSchema: 发票信息
         """
-        crud = InvoiceCRUD(auth)
+        crud = InvoiceCRUD(self.auth)
         invoice = await crud.get(id=invoice_id)
         if not invoice:
             raise CustomException(msg="发票不存在")
