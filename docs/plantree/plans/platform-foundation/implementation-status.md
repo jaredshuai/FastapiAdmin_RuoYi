@@ -17,13 +17,12 @@ Phase 1：安全与生产硬化。
 
 ## Next Target
 
-审查并提交 Phase 1 审计修正切片，取得 GitHub Actions 证据；随后用真实上一发布版本数据库副本完成 G3 升级与恢复演练。
+完成草稿 PR #1 的评审与合并；随后用真实上一发布版本数据库副本完成 G3 升级与恢复演练。
 
 ## Active TODO
 
-1. 按配置、权限、迁移、容器/CI、模块清单边界审查并整理候选提交。
-2. 推送后确认 import-linter 基线冻结、后端全量测试、前端与 Compose 在干净 GitHub runner 上通过；不得把 3 kept / 0 broken 表述为 G5 严格门禁已关闭。
-3. 在真实旧库副本上演练备份、结构比较、受控 stamp、upgrade 和恢复，补齐 G3 证据。
+1. 评审并合并[草稿 PR #1](https://github.com/jaredshuai/FastapiAdmin_RuoYi/pull/1)。
+2. 在真实旧库副本上演练备份、结构比较、受控 stamp、upgrade 和恢复，补齐 G3 证据。
 
 ## Blocked By
 
@@ -38,7 +37,7 @@ Phase 1：安全与生产硬化。
 
 ## Last Verified
 
-2026-07-18：Phase 1 审计修正工作树本地重验通过：已消除 `assert_route` 吞异常/非 404 假绿，将浅层接口清单明确降级为严格三参数的路由注册 smoke，拒绝状态码、认证和请求体等伪请求参数；生产 `upgrade` 缺密钥先失败，同进程数据库环境切换会被拒绝；跨租户写入同时验证目标数据未变，超管跨租户可见性已按当前规则锁定。后端 `319 passed, 1 warning`，import-linter 基线为 3 kept/0 broken；此前全新 SQLite、MySQL 8.0.43、容器和生产文档关闭证据仍有效。该结果尚未提交或推送，真实上一发布版本数据库恢复演练和 G5 严格边界仍待完成。详见[Phase 1 验证记录](../../baseline/verification-2026-07-18-phase1.md)。
+2026-07-18：Phase 1 审计修正已提交至[草稿 PR #1](https://github.com/jaredshuai/FastapiAdmin_RuoYi/pull/1)，首轮 GitHub Actions [运行 #29635091044](https://github.com/jaredshuai/FastapiAdmin_RuoYi/actions/runs/29635091044) 的后端、前端与 Compose 三个 job 全绿。本地后端为 `319 passed, 1 warning`，import-linter 存量冻结基线为 3 kept/0 broken；已消除 HTTP 测试假绿，生产配置、Alembic 基线/存量库保护、容器自包含、跨租户拒绝与超管规则均有对应证据。真实上一发布版本数据库恢复演练和 G5 严格边界仍待完成。详见[Phase 1 验证记录](../../baseline/verification-2026-07-18-phase1.md)。
 
 2026-07-17：uv 托管 Python 3.12.13 与 107 个冻结依赖安装成功；Ruff 只读检查通过；pytest 收集 265 项并全部通过。Node 24.15.0 与 pnpm 9.15.3 下，前端冻结安装、只读 lint、3 项 Vitest、类型检查和生产构建通过；Compose 配置解析通过。GitHub Actions [运行 #29587268152](https://github.com/jaredshuai/FastapiAdmin_RuoYi/actions/runs/29587268152) 的 3 个 job 全绿。完整证据与已修正失败见[验证记录](../../baseline/verification-2026-07-17.md)。
 

@@ -1,6 +1,6 @@
 # Phase 1 审计修正验证记录（2026-07-18）
 
-状态：工作树候选修正已完成本地重验，尚未提交、推送或获得 GitHub Actions 证据。
+状态：候选修正已提交至[草稿 PR #1](https://github.com/jaredshuai/FastapiAdmin_RuoYi/pull/1)；本地重验与首轮 GitHub Actions 均通过。
 
 ## 已验证
 
@@ -16,6 +16,7 @@
 | Ruff | 通过 | `All checks passed!` |
 | import-linter 基线冻结 | 通过 | `uvx --from import-linter==2.3 lint-imports` 为 3 kept / 0 broken；契约仍用 `ignore_imports` 登记存量违规，本结果只证明没有超出当前基线，不代表 G5 严格边界已关闭 |
 | 后端 pytest | 通过 | Python 3.12.13 下 `319 passed, 1 warning in 93.24s`；HTTP 助手不再吞异常，路由注册 smoke 严格拒绝状态码、认证和请求体参数；唯一警告来自第三方 `python_multipart` 弃用提示 |
+| GitHub Actions | 通过 | [运行 #29635091044](https://github.com/jaredshuai/FastapiAdmin_RuoYi/actions/runs/29635091044) 的后端、前端与 Compose 三个 job 全绿 |
 
 ## 本轮额外发现
 
@@ -27,7 +28,7 @@
 
 ## 仍未关闭
 
-- 尚未提交和推送，因此没有本轮 GitHub Actions 日志。
+- 草稿 PR #1 尚待评审和合并。
 - 尚未用真实上一发布版本数据库副本演练备份、结构比较、stamp、升级和恢复；G3 不能只凭空库基线宣称完全关闭。
 - 全栈 smoke 使用本机临时容器完成，不替代目标部署环境的发布验证。
 - import-linter 仍是存量违规冻结基线；清空 `ignore_imports`、模块 DAG/数据所有权与装配纪律属于 Phase 2/G5，不能把 3 kept / 0 broken 表述为严格架构门禁已完成。
